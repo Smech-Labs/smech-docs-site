@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmechDeploy -- Smech Labs Docs</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="https://labs.smech.xyz/logo.svg" type="image/svg+xml">
+</head>
+<body>
+
+<button class="nav-toggle" id="navToggle" aria-label="Toggle navigation"><span></span><span></span><span></span></button>
+
+<aside class="sidebar">
+  <a class="sidebar-brand" href="index.html">
+    <img src="https://labs.smech.xyz/logo.svg" alt="Smech Labs">
+    <span>Smech <em>Docs</em></span>
+  </a>
+  <nav class="sidebar-nav">
+    <span class="nav-section-label">Getting Started</span>
+    <a href="index.html" class="section-link">Introduction</a>
+    <a href="index.html#projects">Projects Overview</a>
+    <a href="index.html#philosophy">Philosophy</a>
+
+    <span class="nav-section-label">SmechOS</span>
+    <a href="smechos.html" class="section-link">Overview</a>
+    <a href="smechos.html#architecture">Architecture</a>
+    <a href="smechos.html#installing">Installing</a>
+    <a href="smechos.html#spk">spk Package Manager</a>
+    <a href="smechos.html#build">Building from Source</a>
+
+    <span class="nav-section-label">SmechVisor</span>
+    <a href="smechvisor.html" class="section-link">Overview</a>
+    <a href="smechvisor.html#architecture">Architecture</a>
+    <a href="smechvisor.html#installing">Installing</a>
+    <a href="smechvisor.html#dashboard">Dashboard</a>
+    <a href="smechvisor.html#iommu">IOMMU &amp; VFIO</a>
+    <a href="smechvisor.html#api">API Reference</a>
+    <a href="spk-visor.html" class="section-link">spk-visor</a>
+    <a href="spk-visor.html#ota">OTA Updates</a>
+    <a href="spk-visor.html#deploy">Network Deploy</a>
+    <a href="spk-visor.html#shim">Deploy Shim ISO</a>
+
+    <span class="nav-section-label">Build Pipeline</span>
+    <a href="smechdeploy.html" class="section-link active">SmechDeploy</a>
+    <a href="smechdeploy.html#profiles">Build Profiles</a>
+    <a href="smechdeploy.html#scripts">Script Reference</a>
+  </nav>
+  <div class="sidebar-footer">
+    <a href="https://labs.smech.xyz" target="_blank">labs.smech.xyz</a> &nbsp;·&nbsp;
+    <a href="https://github.com/Smech-Labs" target="_blank">GitHub</a>
+  </div>
+</aside>
+
+<main class="main">
+  <h1>
+    <span class="page-label">Build Pipeline</span>
+    SmechDeploy
+  </h1>
+  <p class="page-intro">
+    SmechDeploy is the build and deployment toolkit for the entire Smech Labs OS stack.
+    It is a collection of shell and Python scripts that compile upstream sources and
+    write the results into raw disk images — no package manager, no container, no
+    external build system abstraction.
+  </p>
+
+  <h2>What it builds</h2>
+  <table>
+    <thead><tr><th>Output</th><th>Profile</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>images/smechos.img</code></td>
+        <td>smechos</td>
+        <td>SmechOS master disk image — KDE Plasma 6, OpenRC, spk</td>
+      </tr>
+      <tr>
+        <td><code>images/smechvisor-install-*.iso</code></td>
+        <td>smechvisor</td>
+        <td>SmechVisor install ISO — offline installer, all packages on disc</td>
+      </tr>
+      <tr>
+        <td><code>images/smechvisor-shim-*.iso</code></td>
+        <td>smechvisor</td>
+        <td>Deploy Shim ISO — minimal boot for network deployment</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Repository layout</h2>
+  <pre><code>SmechDeploy/
+├── bin/                      # build scripts (shell + Python)
+├── build_order.txt           # SmechOS script execution order
+├── build_order_smechvisor.txt # SmechVisor script execution order
+├── images/                   # raw disk images (not in git)
+├── essentials/               # vendored upstream sources (not in git)
+├── deps/                     # third-party deps (libnl, meson, etc.)
+├── repo-packs/               # spk Rust source
+├── repo-packs-installer/     # smech-installer Rust source (SmechOS TUI installer)
+├── repo-packs-installer-visor/ # smechvisor-installer Rust source
+├── repo-packs-spkvisor/      # spk-visor Rust source
+├── config/                   # OpenRC service configs, SDDM config
+└── .venv/                    # Python venv for the orchestrator</code></pre>
+
+  <div class="callout warn">
+    <strong>Never commit these directories</strong>
+    <code>/iso-builder/</code>, <code>/deps/</code>, <code>/essentials/</code>, and
+    <code>/images/</code> are excluded from git via <code>.gitignore</code>. They
+    contain multi-GB build artifacts, pre-compiled binaries, and vendored sources
+    that do not belong in version control.
+  </div>
+
+  <h2>Prerequisites</h2>
+  <ul>
+    <li>x86_64 Linux host (Debian or Ubuntu recommended)</li>
+    <li>Root access (required for <code>debugfs</code>, <code>mount</code>, <code>chroot</code>, and <code>make install</code>)</li>
+    <li>Packages: <code>build-essential python3 python3-venv cargo rustc xorriso grub-efi-amd64-bin grub-pc-bin libnewt-dev</code></li>
+    <li>~50 GB free disk space for build artifacts</li>
+    <li>Internet access for downloading upstream source tarballs (Phase 2 only)</li>
+  </ul>
+
+  <h2 id="profiles">Build Profiles</h2>
+
+  <h3>SmechOS profile</h3>
+  <p>Run the full SmechOS build:</p>
+  <pre><code>cd SmechDeploy
+sudo bash bin/build_smechos.sh</code></pre>
+  <p>The orchestrator reads <code>build_order.txt</code>, activates the Python venv,
+     and runs each script in order. See <a href="#scripts">Script Reference</a> for
+     individual phase descriptions.</p>
+
+  <h3>SmechVisor profile</h3>
+  <p>Run the full SmechVisor build:</p>
+  <pre><code>cd SmechDeploy
+export SMECH_TARGET=/mnt/smechos_build_root
+sudo bash bin/build_smechos.sh --profile smechvisor</code></pre>
+  <p>Uses <code>build_order_smechvisor.txt</code>. Bootstraps a musl userland, compiles
+     the kernel, installs the smechvisord daemon, and produces both the install ISO and
+     the deploy shim ISO.</p>
+
+  <h3>Running a single phase</h3>
+  <p>Every script auto-detects its own <code>SCRIPT_DIR</code> and <code>DEPLOY_ROOT</code>,
+     so individual phase scripts can be run standalone:</p>
+  <pre><code>sudo SMECH_TARGET=/mnt/smechos bash bin/04_compile_kde_stack.py
+sudo bash bin/15_build_smechvisor_install_iso.sh</code></pre>
+
+  <h2 id="scripts">Script Reference</h2>
+
+  <h3>SmechOS — Phase 1: Base system restoration</h3>
+  <p>Phase 1 operates directly on <code>images/part2.img</code> via <code>debugfs -w</code>,
+     without mounting. It pulls files from a reference host at
+     <code>/mnt/kaymium_sovereign</code>.</p>
+
+  <table>
+    <thead><tr><th>Script</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td><code>restore_utils.py</code></td><td>Restores core userland utilities into <code>part2.img</code></td></tr>
+      <tr><td><code>restore_lib64.py</code></td><td>Restores shared libraries (<code>/lib64</code>, <code>/usr/lib</code>)</td></tr>
+      <tr><td><code>restore_etc.py</code></td><td>Restores <code>/etc</code> skeleton (without sensitive files)</td></tr>
+      <tr><td><code>deploy_openrc.py</code></td><td>Copies OpenRC skeleton from <code>deps/others/openrc_install</code></td></tr>
+      <tr><td><code>edit_inittab.py</code></td><td>Writes <code>/etc/inittab</code> with OpenRC defaults</td></tr>
+      <tr><td><code>write_unreadable_etc.py</code></td><td>Writes files that can't be restored via debugfs due to permissions</td></tr>
+    </tbody>
+  </table>
+
+  <h3>SmechOS — Phase 2: Compilation and configuration</h3>
+  <p>Phase 2 requires the image mounted at <code>/mnt/smechos</code>
+     (set via <code>SMECH_TARGET</code>). Sources are compiled from
+     <code>essentials/sources/</code> with <code>CFLAGS</code>, <code>LDFLAGS</code>, and
+     <code>PKG_CONFIG_PATH</code> pointing at <code>$SMECH_TARGET/usr</code>.</p>
+
+  <table>
+    <thead><tr><th>Script</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td><code>01_compile_core_system.sh</code></td><td>Builds musl libc, bash, coreutils, util-linux, and other base tools</td></tr>
+      <tr><td><code>02_compile_grub_efi.sh</code></td><td>Builds GRUB 2.12 with EFI and BIOS targets</td></tr>
+      <tr><td><code>03_compile_qt_deps.sh</code></td><td>Builds Qt 6 dependencies (zlib, libpng, freetype, fontconfig, etc.)</td></tr>
+      <tr><td><code>compile_mesa_stack.sh</code></td><td>Builds Mesa from source with AMD RDNA and virtio-gpu drivers</td></tr>
+      <tr><td><code>04_compile_kde_stack.py</code></td><td>Builds KDE Frameworks 6 and Plasma 6.6.5 from source</td></tr>
+      <tr><td><code>05_configure_plasma.sh</code></td><td>Writes Plasma session config, SDDM config, autologin.conf into target</td></tr>
+      <tr><td><code>06_copy_kwin_deps.py</code></td><td>Copies KWin compositor runtime dependencies</td></tr>
+      <tr><td><code>07_copy_qt6uitools.py</code></td><td>Copies Qt6UITools (needed by some Plasma components)</td></tr>
+      <tr><td><code>compile_kernel.sh</code></td><td>Builds Linux 6.12.16 with KVM, VFIO, RDNA drivers</td></tr>
+      <tr><td><code>08_patch_metadata.py</code></td><td>Patches version metadata in KDE source trees</td></tr>
+      <tr><td><code>09_rotate_auth.py</code></td><td>Toggles Gemini CLI auth settings — not part of the OS build itself</td></tr>
+    </tbody>
+  </table>
+
+  <h3>SmechVisor — Full build sequence</h3>
+
+  <table>
+    <thead><tr><th>Script</th><th>Phase</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td><code>10_bootstrap_musl.sh</code></td><td>Phase 1</td><td>Bootstraps a minimal musl libc environment in the SmechVisor build root</td></tr>
+      <tr><td><code>11_bootstrap_userland_musl.sh</code></td><td>Phase 1</td><td>Builds BusyBox-style userland against musl</td></tr>
+      <tr><td><code>12_write_etc_skeleton.py</code></td><td>Phase 2</td><td>Writes <code>/etc</code> skeleton (hostname, hosts, fstab, resolv.conf)</td></tr>
+      <tr><td><code>deploy_openrc.py</code></td><td>Phase 2</td><td>Deploys OpenRC service scripts and runlevel symlinks</td></tr>
+      <tr><td><code>edit_inittab.py</code></td><td>Phase 2</td><td>Writes SmechVisor inittab (OpenRC, no getty except tty1)</td></tr>
+      <tr><td><code>compile_kernel.sh</code></td><td>Phase 3</td><td>Builds Linux 6.12.16 with KVM, VFIO, vhost, IOMMU drivers</td></tr>
+      <tr><td><code>02_compile_grub_efi.sh</code></td><td>Phase 4</td><td>Builds GRUB with IOMMU boot cmdline defaults</td></tr>
+      <tr><td><code>13_install_smechvisor.sh</code></td><td>Phase 5</td><td>Installs smechvisord binary, web assets, cloud-hypervisor, OpenRC init scripts</td></tr>
+      <tr><td><code>15_build_smechvisor_install_iso.sh</code></td><td>Phase 6</td><td>Packages everything into an offline install ISO</td></tr>
+      <tr><td><code>16_build_smechvisor_deploy_shim.sh</code></td><td>Phase 7</td><td>Builds the Deploy Shim ISO with spk-visor and the Newt TUI flow</td></tr>
+    </tbody>
+  </table>
+
+  <h2>The spk build</h2>
+  <p><code>spk</code> is a separate Rust crate in <code>repo-packs/</code>. It is not
+     built by the orchestrator — build it manually and copy it into the target:</p>
+  <pre><code>cd repo-packs
+cargo build --release
+cp target/release/spk /mnt/smechos/usr/bin/spk</code></pre>
+
+  <h2>Adding a new build script</h2>
+  <ol class="steps">
+    <li>Create the script in <code>bin/</code> with a numbered prefix matching its intended position (e.g. <code>bin/17_my_step.sh</code>).</li>
+    <li>Add the path to the appropriate <code>build_order*.txt</code> on a new line at the right position.</li>
+    <li>Export <code>SMECH_TARGET</code> at the top of the script and use it as the install prefix for any <code>make install</code> or <code>meson install</code> calls.</li>
+    <li>Call <code>sudo</code> for privileged operations — do not embed passwords or hardcode credentials.</li>
+  </ol>
+
+  <div class="callout">
+    <strong>Numbered vs unnumbered scripts</strong>
+    <code>bin/</code> contains both numbered (<code>01_compile_core_system.sh</code>) and
+    unnumbered (<code>compile_core_system.sh</code>) versions of some scripts. The numbered
+    versions listed in <code>build_order.txt</code> are the canonical ones — treat those as
+    the source of truth. The unnumbered copies are older drafts.
+  </div>
+</main>
+
+<script src="nav.js"></script>
+</body>
+</html>

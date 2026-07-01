@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmechVisor -- Smech Labs Docs</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="https://labs.smech.xyz/logo.svg" type="image/svg+xml">
+</head>
+<body>
+
+<button class="nav-toggle" id="navToggle" aria-label="Toggle navigation"><span></span><span></span><span></span></button>
+
+<aside class="sidebar">
+  <a class="sidebar-brand" href="index.html">
+    <img src="https://labs.smech.xyz/logo.svg" alt="Smech Labs">
+    <span>Smech <em>Docs</em></span>
+  </a>
+  <nav class="sidebar-nav">
+    <span class="nav-section-label">Getting Started</span>
+    <a href="index.html" class="section-link">Introduction</a>
+    <a href="index.html#projects">Projects Overview</a>
+    <a href="index.html#philosophy">Philosophy</a>
+
+    <span class="nav-section-label">SmechOS</span>
+    <a href="smechos.html" class="section-link">Overview</a>
+    <a href="smechos.html#architecture">Architecture</a>
+    <a href="smechos.html#installing">Installing</a>
+    <a href="smechos.html#spk">spk Package Manager</a>
+    <a href="smechos.html#build">Building from Source</a>
+
+    <span class="nav-section-label">SmechVisor</span>
+    <a href="smechvisor.html" class="section-link active">Overview</a>
+    <a href="smechvisor.html#architecture">Architecture</a>
+    <a href="smechvisor.html#installing">Installing</a>
+    <a href="smechvisor.html#dashboard">Dashboard</a>
+    <a href="smechvisor.html#iommu">IOMMU &amp; VFIO</a>
+    <a href="smechvisor.html#api">API Reference</a>
+    <a href="spk-visor.html" class="section-link">spk-visor</a>
+    <a href="spk-visor.html#ota">OTA Updates</a>
+    <a href="spk-visor.html#deploy">Network Deploy</a>
+    <a href="spk-visor.html#shim">Deploy Shim ISO</a>
+
+    <span class="nav-section-label">Build Pipeline</span>
+    <a href="smechdeploy.html" class="section-link">SmechDeploy</a>
+    <a href="smechdeploy.html#profiles">Build Profiles</a>
+    <a href="smechdeploy.html#scripts">Script Reference</a>
+  </nav>
+  <div class="sidebar-footer">
+    <a href="https://labs.smech.xyz" target="_blank">labs.smech.xyz</a> &nbsp;·&nbsp;
+    <a href="https://github.com/Smech-Labs" target="_blank">GitHub</a>
+  </div>
+</aside>
+
+<main class="main">
+  <h1>
+    <span class="page-label">SmechVisor</span>
+    Overview
+  </h1>
+  <p class="page-intro">
+    SmechVisor is a sovereign bare-metal hypervisor OS — a stripped-down SmechOS
+    base running OpenRC only, with <code>cloud-hypervisor</code> for direct KVM
+    access and <code>smechvisord</code> as the web control plane. Install-only.
+    No desktop environment. No package manager UI. No unnecessary services.
+  </p>
+
+  <h2 id="architecture">Architecture</h2>
+
+  <table>
+    <thead><tr><th>Layer</th><th>Component</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Init</td><td>OpenRC</td><td>No systemd — 30,000 lines vs 1.5M</td></tr>
+      <tr><td>VMM</td><td>cloud-hypervisor v42.0</td><td>Rust VMM, direct /dev/kvm, no QEMU</td></tr>
+      <tr><td>GPU daemon</td><td>vhost-user-gpu</td><td>Decoupled, VirtIO device ID 16, Unix socket</td></tr>
+      <tr><td>Control plane</td><td>smechvisord</td><td>Rust/Axum, port 8080, serves dashboard + REST API</td></tr>
+      <tr><td>Base</td><td>musl + Clang</td><td>Independent userland, no glibc dependency</td></tr>
+      <tr><td>Kernel</td><td>Linux 6.12.16</td><td>KVM, VFIO, vhost modules compiled in</td></tr>
+      <tr><td>Bootloader</td><td>GRUB 2.12</td><td>IOMMU enabled by default in boot cmdline</td></tr>
+      <tr><td>Updater</td><td>spk-visor</td><td>Live OTA + network deploy</td></tr>
+    </tbody>
+  </table>
+
+  <h3>OpenRC runlevel order</h3>
+  <pre><code>sysinit   → devfs, dmesg, udev, cgroups
+boot      → modules, localmount, hostname, networking
+default   → vhost-user-gpu → smechvisord
+shutdown  → mount-ro, savecache, killprocs</code></pre>
+
+  <div class="callout">
+    <strong>Design decision</strong>
+    SmechVisor is install-only — there is no live boot mode. This follows the same
+    philosophy as Proxmox VE, VMware ESXi, and Hyper-V Server. A hypervisor OS
+    running live from removable media has no reliable persistent state and no
+    meaningful use case for production operation.
+  </div>
+
+  <h2 id="installing">Installing</h2>
+
+  <h3>Method 1 — Install ISO (recommended)</h3>
+  <p>The install ISO contains all packages on-disc. No internet connection required
+     during installation.</p>
+
+  <ol class="steps">
+    <li>Download the install ISO from <a href="https://visor.smech.xyz/downloads.html" target="_blank">visor.smech.xyz/downloads</a> and verify its checksum.</li>
+    <li>Write to USB:
+      <pre><code>sudo dd if=smechvisor-install-*.iso of=/dev/sdX bs=4M status=progress && sync</code></pre>
+    </li>
+    <li>Boot the target machine from the USB. The TUI installer launches automatically.</li>
+    <li>The wizard: select timezone → hardware detection → partition disk (cfdisk) → choose EFI/swap/root → install from ISO → install GRUB → reboot.</li>
+    <li>Remove USB. SmechVisor boots into OpenRC. The <code>smechvisord</code> control plane is available at <code>http://&lt;host-ip&gt;:8080</code>.</li>
+  </ol>
+
+  <h3>Method 2 — Network Deploy via spk-visor</h3>
+  <p>If you already have a running SmechVisor node, you can deploy to additional
+     machines over the network using the
+     <a href="spk-visor.html#deploy">Deploy Shim ISO</a>. See the
+     <a href="spk-visor.html">spk-visor documentation</a> for the full workflow.</p>
+
+  <h3>Method 3 — smechvisord daemon only</h3>
+  <p>If you already have a compatible musl + OpenRC base, you can run
+     <code>smechvisord</code> standalone without a full SmechVisor install:</p>
+  <pre><code>chmod +x smechvisord
+SMECHVISORD_WEB_DIR=/usr/share/smechvisord/web \
+SMECHVISORD_BIND=0.0.0.0:8080 \
+./smechvisord</code></pre>
+
+  <h2 id="dashboard">Dashboard</h2>
+  <p>The <code>smechvisord</code> daemon serves a dark industrial web dashboard on
+     port 8080. It has three views:</p>
+
+  <table>
+    <thead><tr><th>View</th><th>What it shows</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Node Overview</strong></td>
+        <td>CPU model and core count, total/used RAM, system uptime, KVM availability (<code>/dev/kvm</code>), running VMs list</td>
+      </tr>
+      <tr>
+        <td><strong>Provision VM</strong></td>
+        <td>Form to launch a new VM — CPU count, memory (MB), disk image path. Spawns cloud-hypervisor directly.</td>
+      </tr>
+      <tr>
+        <td><strong>HW Settings</strong></td>
+        <td>IOMMU status, VFIO PCIe passthrough toggle, "Restart to UEFI Firmware" button</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Topbar status indicator</h3>
+  <p>A pulsing green dot in the topbar confirms <code>smechvisord</code> is running
+     and reachable. The indicator goes red if the API stops responding (page
+     auto-polls every 5 seconds).</p>
+
+  <h3>Environment variables</h3>
+  <table>
+    <thead><tr><th>Variable</th><th>Default</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><code>SMECHVISORD_BIND</code></td><td><code>0.0.0.0:8080</code></td><td>Listen address and port</td></tr>
+      <tr><td><code>SMECHVISORD_WEB_DIR</code></td><td><code>/usr/share/smechvisord/web</code></td><td>Path to dashboard static assets</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="iommu">IOMMU &amp; VFIO</h2>
+  <p>PCIe passthrough in SmechVisor requires IOMMU to be active. The VFIO toggle
+     in the dashboard gates on a three-way check before enabling:</p>
+
+  <ol class="steps">
+    <li><strong>Virtualization extensions</strong> — checks <code>/proc/cpuinfo</code> for <code>vmx</code> (Intel VT-x) or <code>svm</code> (AMD-V).</li>
+    <li><strong>IOMMU groups populated</strong> — checks <code>/sys/kernel/iommu_groups</code> for at least one group.</li>
+    <li><strong>Kernel cmdline</strong> — checks <code>/proc/cmdline</code> for <code>intel_iommu=on</code> or <code>amd_iommu=on</code>.</li>
+  </ol>
+
+  <p>If any check fails, the toggle is blocked and the dashboard offers to reboot
+     directly into UEFI firmware settings to enable the relevant option in BIOS.</p>
+
+  <div class="callout note">
+    <strong>Note</strong>
+    The SmechVisor GRUB config enables <code>intel_iommu=on amd_iommu=on iommu=pt</code>
+    by default. On most hardware this means IOMMU is active out of the box after install —
+    no manual GRUB editing required. You still need to enable VT-d / AMD-Vi in BIOS/UEFI.
+  </div>
+
+  <h3>Enabling VFIO</h3>
+  <pre><code># Via the dashboard -- go to HW Settings and toggle VFIO
+# Or via spk-visor (CLI) on the SmechVisor node:
+# The dashboard calls POST /api/vfio which runs:
+modprobe vfio-pci       # enable
+modprobe -r vfio-pci    # disable</code></pre>
+
+  <h2 id="api">API Reference</h2>
+  <p>All endpoints are served by <code>smechvisord</code> on port 8080.
+     The dashboard at <code>/</code> consumes these endpoints directly.</p>
+
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/node</code></td>
+        <td>Returns JSON with CPU info, total/used RAM, uptime, KVM availability</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/vms</code></td>
+        <td>Returns JSON list of running VM processes with PID, CPU, memory</td>
+      </tr>
+      <tr>
+        <td><code>POST</code></td>
+        <td><code>/api/vms</code></td>
+        <td>Spawn a new VM. Body: <code>{"cpus": 2, "memory_mb": 4096, "disk": "/path/to/disk.img"}</code></td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/api/iommu</code></td>
+        <td>Returns IOMMU readiness: vtx/svm present, iommu_groups count, cmdline flags</td>
+      </tr>
+      <tr>
+        <td><code>POST</code></td>
+        <td><code>/api/vfio</code></td>
+        <td>Toggle VFIO. Body: <code>{"enable": true}</code>. Blocked if IOMMU not ready.</td>
+      </tr>
+      <tr>
+        <td><code>POST</code></td>
+        <td><code>/api/reboot-uefi</code></td>
+        <td>Writes EFI OsIndications variable to trigger reboot into firmware setup</td>
+      </tr>
+      <tr>
+        <td><code>GET</code></td>
+        <td><code>/</code></td>
+        <td>Serves the SmechVisor dashboard (static HTML/CSS/JS)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Example: get node info</h3>
+  <pre><code>curl http://&lt;host-ip&gt;:8080/api/node</code></pre>
+  <pre><code>{
+  "cpu_model": "AMD Threadripper PRO 9965WX",
+  "cpu_cores": 24,
+  "memory_total_mb": 262144,
+  "memory_used_mb": 4096,
+  "uptime_seconds": 3600,
+  "kvm_available": true
+}</code></pre>
+
+  <h3>Example: spawn a VM</h3>
+  <pre><code>curl -X POST http://&lt;host-ip&gt;:8080/api/vms \
+  -H "Content-Type: application/json" \
+  -d '{"cpus": 4, "memory_mb": 8192, "disk": "/var/lib/smechvisord/vms/vm01.img"}'</code></pre>
+</main>
+
+<script src="nav.js"></script>
+</body>
+</html>
