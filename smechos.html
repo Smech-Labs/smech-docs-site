@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmechOS -- Smech Labs Docs</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="https://labs.smech.xyz/logo.svg" type="image/svg+xml">
+</head>
+<body>
+
+<button class="nav-toggle" id="navToggle" aria-label="Toggle navigation"><span></span><span></span><span></span></button>
+
+<aside class="sidebar">
+  <a class="sidebar-brand" href="index.html">
+    <img src="https://labs.smech.xyz/logo.svg" alt="Smech Labs">
+    <span>Smech <em>Docs</em></span>
+  </a>
+  <nav class="sidebar-nav">
+    <span class="nav-section-label">Getting Started</span>
+    <a href="index.html" class="section-link">Introduction</a>
+    <a href="index.html#projects">Projects Overview</a>
+    <a href="index.html#philosophy">Philosophy</a>
+
+    <span class="nav-section-label">SmechOS</span>
+    <a href="smechos.html" class="section-link active">Overview</a>
+    <a href="smechos.html#architecture">Architecture</a>
+    <a href="smechos.html#installing">Installing</a>
+    <a href="smechos.html#spk">spk Package Manager</a>
+    <a href="smechos.html#build">Building from Source</a>
+
+    <span class="nav-section-label">SmechVisor</span>
+    <a href="smechvisor.html" class="section-link">Overview</a>
+    <a href="smechvisor.html#architecture">Architecture</a>
+    <a href="smechvisor.html#installing">Installing</a>
+    <a href="smechvisor.html#dashboard">Dashboard</a>
+    <a href="smechvisor.html#iommu">IOMMU &amp; VFIO</a>
+    <a href="smechvisor.html#api">API Reference</a>
+    <a href="spk-visor.html" class="section-link">spk-visor</a>
+    <a href="spk-visor.html#ota">OTA Updates</a>
+    <a href="spk-visor.html#deploy">Network Deploy</a>
+    <a href="spk-visor.html#shim">Deploy Shim ISO</a>
+
+    <span class="nav-section-label">Build Pipeline</span>
+    <a href="smechdeploy.html" class="section-link">SmechDeploy</a>
+    <a href="smechdeploy.html#profiles">Build Profiles</a>
+    <a href="smechdeploy.html#scripts">Script Reference</a>
+  </nav>
+  <div class="sidebar-footer">
+    <a href="https://labs.smech.xyz" target="_blank">labs.smech.xyz</a> &nbsp;·&nbsp;
+    <a href="https://github.com/Smech-Labs" target="_blank">GitHub</a>
+  </div>
+</aside>
+
+<main class="main">
+  <h1>
+    <span class="page-label">SmechOS</span>
+    Overview
+  </h1>
+  <p class="page-intro">
+    SmechOS is an independent Linux distribution built entirely from source.
+    It is not based on any existing distribution — no Gentoo, no Ubuntu, no Arch.
+    The kernel, installer, package manager, and desktop are all maintained as
+    first-party components.
+  </p>
+
+  <h2 id="architecture">Architecture</h2>
+  <p>SmechOS is assembled by <a href="smechdeploy.html">SmechDeploy</a> — a pipeline of shell and Python
+     scripts that compile upstream sources and write the result into raw disk images.</p>
+
+  <table>
+    <thead><tr><th>Layer</th><th>Component</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Desktop</td><td>KDE Plasma 6.6.5</td><td>Built from source via SmechDeploy</td></tr>
+      <tr><td>Display server</td><td>Wayland (KWin compositor)</td><td>X11/XWayland available for legacy apps</td></tr>
+      <tr><td>Init system</td><td>OpenRC</td><td>No systemd — plain shell service scripts</td></tr>
+      <tr><td>Graphics</td><td>Mesa (compiled from source)</td><td>AMD RDNA / Intel / virtio-gpu</td></tr>
+      <tr><td>Toolkit</td><td>Qt 6</td><td>Built from source, no distro packages</td></tr>
+      <tr><td>Kernel</td><td>Linux 6.12.16</td><td>Compiled by <code>compile_kernel.sh</code></td></tr>
+      <tr><td>Bootloader</td><td>GRUB 2.12</td><td>EFI + BIOS hybrid</td></tr>
+      <tr><td>Package manager</td><td>spk</td><td>Rust binary, fetches .tar.xz from GitHub Releases</td></tr>
+      <tr><td>Installer</td><td>smech-installer</td><td>Rust + Newt TUI, netinst</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout note">
+    <strong>Note</strong>
+    SmechOS does not use Portage, APT, DNF, or any other external package manager.
+    <code>spk</code> downloads pre-built tarballs from the SmechDeploy GitHub Release
+    and extracts them directly. There is no package database or dependency resolver —
+    packages are designed to be self-contained.
+  </div>
+
+  <h2 id="installing">Installing</h2>
+  <p>SmechOS ships as a network installer ISO (<code>netinst</code>). The installer
+     downloads packages from the internet during installation — you need a wired
+     Ethernet connection for the install process.</p>
+
+  <h3>Requirements</h3>
+  <ul>
+    <li>x86_64 CPU with SSE4.2</li>
+    <li>4 GB RAM minimum (8 GB recommended for KDE Plasma)</li>
+    <li>40 GB disk space minimum</li>
+    <li>UEFI or BIOS boot</li>
+    <li>Wired Ethernet for the installer</li>
+  </ul>
+
+  <h3>Steps</h3>
+  <ol class="steps">
+    <li>Download the installer ISO from <a href="https://os.smech.xyz/downloads.html" target="_blank">os.smech.xyz/downloads</a> and verify its checksum.</li>
+    <li>Write to USB: <pre><code>sudo dd if=smechos-installer-minimal-netinst.iso of=/dev/sdX bs=4M status=progress && sync</code></pre></li>
+    <li>Boot the target machine from the USB. The installer launches automatically.</li>
+    <li>Follow the TUI wizard: language → country → timezone → hardware detection → network → partitioning → base install → profile → GRUB → done.</li>
+    <li>Remove the USB and reboot. SmechOS boots into KDE Plasma.</li>
+  </ol>
+
+  <div class="callout warn">
+    <strong>Warning</strong>
+    This is an early beta release. The installer boots and walks through all wizard steps
+    but has not been verified for a complete end-to-end install on all real hardware
+    configurations. Treat it as a preview.
+  </div>
+
+  <h2 id="spk">spk — SmechOS Package Manager</h2>
+  <p><code>spk</code> (SmechOS Sovereign Package Keeper) is a zero-dependency Rust binary
+     that manages packages on a running SmechOS system. It does not call
+     <code>emerge</code>, <code>apt</code>, <code>flatpak</code>, or any other external
+     package manager. Every package is a <code>.tar.xz</code> archive fetched from the
+     <a href="https://github.com/Smech-Labs/SmechDeploy/releases" target="_blank">SmechDeploy GitHub Releases</a>
+     via <code>curl</code> and extracted with <code>tar</code>.</p>
+
+  <h3>Commands</h3>
+
+  <div class="cmd-card">
+    <div class="cmd-card-header"><code>spk system-install &lt;package&gt;</code></div>
+    <div class="cmd-card-body">
+      Fetches and extracts a system package into the root filesystem.
+      When run on the build host with <code>/mnt/smechos</code> mounted,
+      it targets that mount instead of <code>/</code>.
+      <pre><code>spk system-install kernel-modules
+spk system-install mesa-graphics</code></pre>
+    </div>
+  </div>
+
+  <div class="cmd-card">
+    <div class="cmd-card-header"><code>spk userland-install &lt;package&gt;</code></div>
+    <div class="cmd-card-body">
+      Same as <code>system-install</code> but semantically intended for desktop
+      applications and userland packages. Behaves identically under the hood.
+      <pre><code>spk userland-install plasma
+spk userland-install kde-frameworks</code></pre>
+    </div>
+  </div>
+
+  <div class="cmd-card">
+    <div class="cmd-card-header"><code>spk entire-system-upgrade</code></div>
+    <div class="cmd-card-body">
+      Re-fetches and reinstalls every known SmechOS package from the release.
+      Equivalent to a full system update. Requires internet access.
+      <pre><code>spk entire-system-upgrade</code></pre>
+    </div>
+  </div>
+
+  <div class="cmd-card">
+    <div class="cmd-card-header"><code>spk about</code></div>
+    <div class="cmd-card-body">
+      Displays the Smech-Sovereign Workstation 2026 hardware specs and
+      spk architecture credits.
+    </div>
+  </div>
+
+  <h3>Known packages</h3>
+  <table>
+    <thead><tr><th>Package</th><th>Contents</th></tr></thead>
+    <tbody>
+      <tr><td><code>kernel-modules</code></td><td>Linux 6.12.16 kernel modules</td></tr>
+      <tr><td><code>firmware</code></td><td>CPU microcode, GPU firmware blobs</td></tr>
+      <tr><td><code>bootloader-grub</code></td><td>GRUB 2.12 EFI + BIOS binaries</td></tr>
+      <tr><td><code>kde-frameworks</code></td><td>KDE Frameworks 6 libraries</td></tr>
+      <tr><td><code>plasma</code></td><td>KDE Plasma 6.6.5 desktop</td></tr>
+      <tr><td><code>qt6</code></td><td>Qt 6 runtime libraries</td></tr>
+      <tr><td><code>mesa-graphics</code></td><td>Mesa OpenGL/Vulkan stack</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout note">
+    <strong>Note</strong>
+    <code>base-system</code> is not yet in the known package list — the tarball
+    in the current release is incomplete and needs to be rebuilt.
+    Use the installer ISO for fresh installs.
+  </div>
+
+  <h2 id="build">Building from Source</h2>
+  <p>SmechOS is built entirely by SmechDeploy. See the
+     <a href="smechdeploy.html">SmechDeploy documentation</a> for the full pipeline
+     and script reference.</p>
+
+  <pre><code># Clone SmechDeploy
+git clone https://github.com/Smech-Labs/SmechDeploy.git
+cd SmechDeploy
+
+# Run the full SmechOS build (requires root for mount/chroot steps)
+bash bin/build_smechos.sh</code></pre>
+
+  <p>The build reads <code>build_order.txt</code> and runs each script in order.
+     Phase 1 operates directly on <code>images/part2.img</code> via
+     <code>debugfs</code> without mounting. Phase 2 compiles sources from
+     <code>essentials/</code> into <code>/mnt/smechos</code>.</p>
+</main>
+
+<script src="nav.js"></script>
+</body>
+</html>

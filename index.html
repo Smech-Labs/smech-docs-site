@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smech Labs Docs</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="https://labs.smech.xyz/logo.svg" type="image/svg+xml">
+</head>
+<body>
+
+<button class="nav-toggle" id="navToggle" aria-label="Toggle navigation"><span></span><span></span><span></span></button>
+
+<aside class="sidebar">
+  <a class="sidebar-brand" href="index.html">
+    <img src="https://labs.smech.xyz/logo.svg" alt="Smech Labs">
+    <span>Smech <em>Docs</em></span>
+  </a>
+  <nav class="sidebar-nav">
+    <span class="nav-section-label">Getting Started</span>
+    <a href="index.html" class="section-link">Introduction</a>
+    <a href="index.html#projects">Projects Overview</a>
+    <a href="index.html#philosophy">Philosophy</a>
+
+    <span class="nav-section-label">SmechOS</span>
+    <a href="smechos.html" class="section-link">Overview</a>
+    <a href="smechos.html#architecture">Architecture</a>
+    <a href="smechos.html#installing">Installing</a>
+    <a href="smechos.html#spk">spk Package Manager</a>
+    <a href="smechos.html#build">Building from Source</a>
+
+    <span class="nav-section-label">SmechVisor</span>
+    <a href="smechvisor.html" class="section-link">Overview</a>
+    <a href="smechvisor.html#architecture">Architecture</a>
+    <a href="smechvisor.html#installing">Installing</a>
+    <a href="smechvisor.html#dashboard">Dashboard</a>
+    <a href="smechvisor.html#iommu">IOMMU &amp; VFIO</a>
+    <a href="smechvisor.html#api">API Reference</a>
+    <a href="spk-visor.html" class="section-link">spk-visor</a>
+    <a href="spk-visor.html#ota">OTA Updates</a>
+    <a href="spk-visor.html#deploy">Network Deploy</a>
+    <a href="spk-visor.html#shim">Deploy Shim ISO</a>
+
+    <span class="nav-section-label">Build Pipeline</span>
+    <a href="smechdeploy.html" class="section-link">SmechDeploy</a>
+    <a href="smechdeploy.html#profiles">Build Profiles</a>
+    <a href="smechdeploy.html#scripts">Script Reference</a>
+  </nav>
+  <div class="sidebar-footer">
+    <a href="https://labs.smech.xyz" target="_blank">labs.smech.xyz</a> &nbsp;·&nbsp;
+    <a href="https://github.com/Smech-Labs" target="_blank">GitHub</a>
+  </div>
+</aside>
+
+<main class="main">
+  <h1>
+    <span class="page-label">Smech Labs Documentation</span>
+    Welcome
+  </h1>
+  <p class="page-intro">
+    Everything you need to build, install, and operate the Smech Labs software
+    stack — SmechOS, SmechVisor, spk, spk-visor, and SmechDeploy.
+  </p>
+
+  <h2 id="projects">Projects</h2>
+  <p>Smech Labs builds a sovereign, open-standard compute stack from the ground up.
+     Nothing here is a rebrand or a thin wrapper around an existing distribution.</p>
+
+  <table>
+    <thead>
+      <tr><th>Project</th><th>What it is</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><a href="smechos.html"><strong>SmechOS</strong></a></td>
+        <td>Independent Linux distribution — KDE Plasma 6, custom build pipeline, no upstream distro base</td>
+        <td><span class="badge badge-beta">Beta</span></td>
+      </tr>
+      <tr>
+        <td><a href="smechos.html#spk"><strong>spk</strong></a></td>
+        <td>SmechOS package manager — fetches .tar.xz packages from GitHub Releases via curl, no Portage/Flatpak</td>
+        <td><span class="badge badge-beta">Beta</span></td>
+      </tr>
+      <tr>
+        <td><a href="smechvisor.html"><strong>SmechVisor</strong></a></td>
+        <td>Sovereign bare-metal hypervisor OS — OpenRC, cloud-hypervisor, web control plane. Install-only, no live mode</td>
+        <td><span class="badge badge-alpha">Alpha</span></td>
+      </tr>
+      <tr>
+        <td><a href="spk-visor.html"><strong>spk-visor</strong></a></td>
+        <td>SmechVisor CLI — live OTA updates and network deployment via the Deploy Shim</td>
+        <td><span class="badge badge-alpha">Alpha</span></td>
+      </tr>
+      <tr>
+        <td><a href="smechdeploy.html"><strong>SmechDeploy</strong></a></td>
+        <td>Build pipeline — shell/Python scripts that compile everything from source into raw disk images</td>
+        <td><span class="badge badge-alpha">Alpha</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="philosophy">Philosophy</h2>
+  <p>Every piece of the Smech Labs stack is built with the same set of principles:</p>
+
+  <h3>Independence over convenience</h3>
+  <p>SmechOS is not based on Ubuntu, Arch, Gentoo, or any other distribution.
+     The kernel is compiled by SmechDeploy. The installer is a Rust binary we wrote.
+     The package manager calls nothing except <code>curl</code> and <code>tar</code>.
+     There is no mystery in the stack.</p>
+
+  <h3>Sovereignty over abstraction</h3>
+  <p>SmechVisor uses <code>cloud-hypervisor</code> directly — no QEMU device emulation layer,
+     no libvirt XML. The init system is OpenRC — no systemd journal, no binary logs,
+     no socket activation sprawl. Every service is a readable shell script.</p>
+
+  <h3>Sealed over packageable</h3>
+  <p>SmechVisor is an appliance OS. You do not <code>apt install</code> things onto it.
+     You update it via <code>spk-visor entire-system-upgrade</code> (live, no reboot for
+     daemon updates) or redeploy it via the network shim. This is the same model
+     Proxmox VE, VMware ESXi, and Hyper-V Server use.</p>
+
+  <h3>Open source, open hardware</h3>
+  <p>All source code is published under <a href="https://github.com/Smech-Labs" target="_blank">Smech Labs on GitHub</a>.
+     Bug reports and feature requests go to the
+     <a href="https://github.com/Smech-Labs/smechos-issues" target="_blank">issue tracker</a>.</p>
+
+  <hr>
+
+  <h2>Quick links</h2>
+  <ul>
+    <li><a href="smechos.html#installing">Install SmechOS</a></li>
+    <li><a href="smechvisor.html#installing">Install SmechVisor</a></li>
+    <li><a href="spk-visor.html#deploy">Deploy SmechVisor over the network</a></li>
+    <li><a href="smechdeploy.html">Build everything from source</a></li>
+  </ul>
+</main>
+
+<script src="nav.js"></script>
+</body>
+</html>

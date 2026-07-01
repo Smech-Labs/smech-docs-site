@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>spk-visor -- Smech Labs Docs</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="https://labs.smech.xyz/logo.svg" type="image/svg+xml">
+</head>
+<body>
+
+<button class="nav-toggle" id="navToggle" aria-label="Toggle navigation"><span></span><span></span><span></span></button>
+
+<aside class="sidebar">
+  <a class="sidebar-brand" href="index.html">
+    <img src="https://labs.smech.xyz/logo.svg" alt="Smech Labs">
+    <span>Smech <em>Docs</em></span>
+  </a>
+  <nav class="sidebar-nav">
+    <span class="nav-section-label">Getting Started</span>
+    <a href="index.html" class="section-link">Introduction</a>
+    <a href="index.html#projects">Projects Overview</a>
+    <a href="index.html#philosophy">Philosophy</a>
+
+    <span class="nav-section-label">SmechOS</span>
+    <a href="smechos.html" class="section-link">Overview</a>
+    <a href="smechos.html#architecture">Architecture</a>
+    <a href="smechos.html#installing">Installing</a>
+    <a href="smechos.html#spk">spk Package Manager</a>
+    <a href="smechos.html#build">Building from Source</a>
+
+    <span class="nav-section-label">SmechVisor</span>
+    <a href="smechvisor.html" class="section-link">Overview</a>
+    <a href="smechvisor.html#architecture">Architecture</a>
+    <a href="smechvisor.html#installing">Installing</a>
+    <a href="smechvisor.html#dashboard">Dashboard</a>
+    <a href="smechvisor.html#iommu">IOMMU &amp; VFIO</a>
+    <a href="smechvisor.html#api">API Reference</a>
+    <a href="spk-visor.html" class="section-link active">spk-visor</a>
+    <a href="spk-visor.html#ota">OTA Updates</a>
+    <a href="spk-visor.html#deploy">Network Deploy</a>
+    <a href="spk-visor.html#shim">Deploy Shim ISO</a>
+
+    <span class="nav-section-label">Build Pipeline</span>
+    <a href="smechdeploy.html" class="section-link">SmechDeploy</a>
+    <a href="smechdeploy.html#profiles">Build Profiles</a>
+    <a href="smechdeploy.html#scripts">Script Reference</a>
+  </nav>
+  <div class="sidebar-footer">
+    <a href="https://labs.smech.xyz" target="_blank">labs.smech.xyz</a> &nbsp;·&nbsp;
+    <a href="https://github.com/Smech-Labs" target="_blank">GitHub</a>
+  </div>
+</aside>
+
+<main class="main">
+  <h1>
+    <span class="page-label">SmechVisor</span>
+    spk-visor
+  </h1>
+  <p class="page-intro">
+    <code>spk-visor</code> is the SmechVisor management CLI. It is not a general-purpose
+    package manager — it replaces the roles that <code>apt</code>, <code>dnf</code>, or
+    <code>emerge</code> would fill on a normal OS with two operations specific to a
+    hypervisor appliance: live OTA updates and zero-downtime network deployment.
+  </p>
+
+  <h2>Overview</h2>
+  <p>On a running SmechVisor node, <code>spk-visor</code> is the only way to update or
+     redeploy the system. It is a pure Rust binary with zero external dependencies — it
+     calls only the OS primitives available on any POSIX system.</p>
+
+  <div class="callout warn">
+    <strong>Not spk</strong>
+    <code>spk-visor</code> is not the same as <code>spk</code>. On SmechOS,
+    <code>spk system-install</code> and <code>spk userland-install</code> download
+    and extract packages. On SmechVisor, those commands are intentionally disabled —
+    the OS is sealed. Running them will produce an error and exit.
+  </div>
+
+  <h2>Commands</h2>
+
+  <div class="cmd-card">
+    <div class="cmd-card-header"><code>spk-visor entire-system-upgrade</code></div>
+    <div class="cmd-card-body">
+      <a href="#ota">OTA update</a> — downloads the latest
+      <code>smechvisor-daemon</code> and <code>smechvisor-base</code> packages from
+      GitHub Releases, stages them, swaps the daemon binary live (no reboot for daemon
+      updates), and schedules a reboot for base system changes.
+    </div>
+  </div>
+
+  <div class="cmd-card">
+    <div class="cmd-card-header"><code>spk-visor deploy-system-img-copy &lt;code&gt;</code></div>
+    <div class="cmd-card-body">
+      <a href="#deploy">Network deploy</a> — the donor side. Streams all SmechVisor
+      packages over TCP to the machine running the
+      <a href="#shim">Deploy Shim ISO</a> that advertised the given code.
+      <pre><code>spk-visor deploy-system-img-copy e13gts2</code></pre>
+    </div>
+  </div>
+
+  <div class="cmd-card">
+    <div class="cmd-card-header"><code>spk-visor receive-deploy</code></div>
+    <div class="cmd-card-body">
+      The receiver side (used internally by the Deploy Shim). Generates a 7-character
+      hex code, displays it on screen, broadcasts it over UDP, waits for a donor to
+      connect, receives packages over TCP, extracts them to <code>/mnt/target</code>,
+      and reboots into the installed system.
+    </div>
+  </div>
+
+  <div class="cmd-card">
+    <div class="cmd-card-header"><code>spk-visor system-install &lt;pkg&gt;</code></div>
+    <div class="cmd-card-body">
+      <strong>Blocked.</strong> SmechVisor is a sealed appliance OS. Installing arbitrary
+      packages is not supported. For updates, use
+      <code>spk-visor entire-system-upgrade</code>.
+    </div>
+  </div>
+
+  <div class="cmd-card">
+    <div class="cmd-card-header"><code>spk-visor userland-install &lt;pkg&gt;</code></div>
+    <div class="cmd-card-body">
+      <strong>Blocked.</strong> Same as <code>system-install</code> — SmechVisor has no
+      desktop environment or userland app layer.
+    </div>
+  </div>
+
+  <div class="cmd-card">
+    <div class="cmd-card-header"><code>spk-visor help</code></div>
+    <div class="cmd-card-body">Prints all available commands with short descriptions.</div>
+  </div>
+
+  <div class="cmd-card">
+    <div class="cmd-card-header"><code>spk-visor about</code></div>
+    <div class="cmd-card-body">Prints version, docs URL, and credits.</div>
+  </div>
+
+  <div class="cmd-card">
+    <div class="cmd-card-header"><code>spk-visor version</code></div>
+    <div class="cmd-card-body">Prints the version string only — useful for scripts.</div>
+  </div>
+
+  <h2 id="ota">OTA Updates</h2>
+  <p>SmechVisor is designed for zero-downtime server operation.
+     <code>spk-visor entire-system-upgrade</code> handles two classes of update
+     differently:</p>
+
+  <table>
+    <thead><tr><th>Package</th><th>Update method</th><th>Reboot needed?</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>smechvisor-daemon</code></td>
+        <td>Stop <code>smechvisord</code> → swap binary → restart immediately</td>
+        <td>No — live swap, &lt;3 seconds downtime</td>
+      </tr>
+      <tr>
+        <td><code>smechvisor-base</code></td>
+        <td>Write to disk, stage for next boot</td>
+        <td>Yes — scheduled, at operator's discretion</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>How it works</h3>
+  <ol class="steps">
+    <li><code>spk-visor</code> fetches <code>smechvisor-daemon.tar.xz</code> and <code>smechvisor-base.tar.xz</code> from the GitHub Release URL using <code>curl</code>.</li>
+    <li>Packages are extracted to a staging directory.</li>
+    <li>The daemon package: <code>rc-service smechvisord stop</code> → copy binary → <code>rc-service smechvisord start</code>.</li>
+    <li>The base package: extracted to <code>/</code> directly. Running system processes are unaffected. A reboot activates the new kernel or base libraries.</li>
+    <li>If the daemon fails to restart, the old binary is restored from a backup taken in step 2.</li>
+  </ol>
+
+  <div class="callout note">
+    <strong>Note</strong>
+    Running VMs are never affected by a daemon OTA update — <code>cloud-hypervisor</code>
+    processes run independently and continue operating while <code>smechvisord</code>
+    restarts. The dashboard goes dark for under 3 seconds.
+  </div>
+
+  <h2 id="deploy">Network Deploy</h2>
+  <p>Network deploy lets you provision a new bare-metal machine with SmechVisor
+     without a USB drive, using an existing running SmechVisor node as the donor.</p>
+
+  <h3>Prerequisites</h3>
+  <ul>
+    <li>A running SmechVisor node (the donor) with <code>spk-visor</code></li>
+    <li>A target machine booted from the <a href="#shim">Deploy Shim ISO</a></li>
+    <li>Both machines on the same network (LAN/VLAN — UDP broadcast must reach both)</li>
+  </ul>
+
+  <h3>Workflow</h3>
+  <ol class="steps">
+    <li>Boot the target machine from the Deploy Shim ISO. Walk through: disk selection → auto-partition → network setup.</li>
+    <li>The shim displays a 7-character code — for example <code>e13gts2</code>. It also broadcasts this code on UDP port 9191 on the LAN.</li>
+    <li>On the donor node, run: <pre><code>spk-visor deploy-system-img-copy e13gts2</code></pre></li>
+    <li><code>spk-visor</code> listens on UDP port 9191 for the broadcast containing <code>SMECHVISOR_SHIM:e13gts2</code>, gets the sender's IP, connects back on TCP port 9192, and streams all packages.</li>
+    <li>The shim receives the packages, extracts them to the partitioned disk, installs GRUB, and reboots into SmechVisor.</li>
+  </ol>
+
+  <h3>Wire protocol</h3>
+  <p>UDP discovery (port 9191):</p>
+  <pre><code>SMECHVISOR_SHIM:{code}
+# example: SMECHVISOR_SHIM:e13gts2</code></pre>
+
+  <p>TCP package stream (port 9192):</p>
+  <pre><code>[4 bytes big-endian: name length]
+[name bytes: package name]
+[8 bytes big-endian: data length]
+[data bytes: raw .tar.xz contents]
+... (repeat for each package)
+[4 bytes: 0x00000000] -- stream terminator</code></pre>
+
+  <h2 id="shim">Deploy Shim ISO</h2>
+  <p>The Deploy Shim is a minimal bootable ISO that transforms any bare-metal machine
+     into a SmechVisor receiver. It boots into a Rust + Newt TUI wizard with no
+     desktop environment, no live OS — just the installer flow.</p>
+
+  <h3>Shim TUI flow</h3>
+  <ol class="steps">
+    <li><strong>Disk selection</strong> — lists all detected block devices. Select the target disk.</li>
+    <li><strong>Auto-partition</strong> — the shim creates a GPT partition table with three partitions automatically:
+      <table style="margin-top:8px">
+        <thead><tr><th>Partition</th><th>Size</th><th>Type</th><th>Mount</th></tr></thead>
+        <tbody>
+          <tr><td>Part 1</td><td>512 MB</td><td>EFI System</td><td><code>/boot/efi</code></td></tr>
+          <tr><td>Part 2</td><td>2 GB</td><td>Linux swap</td><td><code>swap</code></td></tr>
+          <tr><td>Part 3</td><td>Remaining</td><td>Linux filesystem</td><td><code>/</code></td></tr>
+        </tbody>
+      </table>
+    </li>
+    <li><strong>Network type</strong> — choose Ethernet or Wi-Fi.
+      <ul>
+        <li><strong>Ethernet:</strong> choose DHCP (auto) or static IP.</li>
+        <li><strong>Wi-Fi:</strong> select SSID from scan, enter password.</li>
+      </ul>
+    </li>
+    <li><strong>Code display</strong> — a screen shows the 7-character deploy code. On another machine, run <code>spk-visor deploy-system-img-copy &lt;code&gt;</code>.</li>
+    <li><strong>Receive &amp; install</strong> — packages stream in over TCP, progress is displayed. GRUB is installed to the EFI partition. System reboots into SmechVisor.</li>
+  </ol>
+
+  <div class="callout note">
+    <strong>Code generation</strong>
+    The deploy code is generated from the current monotonic time and process PID,
+    encoded as 7 hex characters. It is unique per shim boot session. The shim
+    broadcasts it continuously every 2 seconds until a donor connects.
+  </div>
+
+  <h3>Shim ISO details</h3>
+  <table>
+    <thead><tr><th>Property</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Volume label</td><td><code>SMECHVISOR_SHIM</code></td></tr>
+      <tr><td>Boot</td><td>BIOS (GRUB i386-pc) + EFI (GRUB x86_64-efi)</td></tr>
+      <tr><td>Init</td><td>Minimal shell wrapper — mounts /proc /sys /dev, runs dhcpcd, launches <code>spk-visor receive-deploy</code></td></tr>
+      <tr><td>Network</td><td>dhcpcd on all detected interfaces</td></tr>
+      <tr><td>DNS</td><td>1.1.1.1 (Cloudflare) written to /etc/resolv.conf</td></tr>
+      <tr><td>Binary</td><td>Same <code>spk-visor</code> binary as the production SmechVisor image</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Download</h3>
+  <p>The Deploy Shim ISO is distributed alongside the Install ISO on the
+     <a href="https://visor.smech.xyz/downloads.html" target="_blank">SmechVisor downloads page</a>.</p>
+</main>
+
+<script src="nav.js"></script>
+</body>
+</html>
