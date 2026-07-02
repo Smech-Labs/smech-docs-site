@@ -123,14 +123,30 @@
   </div>
 
   <h2 id="spk">spk — SmechOS Package Manager</h2>
-  <p><code>spk</code> v2.0 (SmechOS Sovereign Package Keeper) is a zero-dependency Rust binary
+  <p><code>spk</code> v2.0 (Smech Sovereign Package Keeper) is a zero-dependency Rust binary
      that manages packages on any Smech Labs OS. It does not call
      <code>emerge</code>, <code>apt</code>, <code>flatpak</code>, or any other external
      package manager. Every package is a <code>.tar.xz</code> archive fetched from the
-     <a href="https://github.com/Smech-Labs/SmechDeploy/releases" target="_blank">SmechDeploy GitHub Releases</a>
-     via <code>curl</code> and extracted with <code>tar</code>. Plasma Discover and other
-     PackageKit-aware frontends can install packages through SPK via the built-in
-     PackageKit script backend.</p>
+     Smech Labs package repository via <code>curl</code> and extracted with <code>tar</code>.
+     Plasma Discover and other PackageKit-aware frontends can install packages through SPK
+     via the built-in PackageKit script backend.</p>
+
+  <h3>Download</h3>
+  <table>
+    <thead><tr><th>File</th><th>Version</th><th>Platform</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><a href="https://github.com/Smech-Labs/spk/releases/download/v2.0.0/spk" target="_blank" rel="noopener">spk</a></td>
+        <td>v2.0.0</td>
+        <td>x86_64 Linux</td>
+      </tr>
+    </tbody>
+  </table>
+  <pre><code># Install to /usr/local/bin
+curl -fsSL https://github.com/Smech-Labs/spk/releases/download/v2.0.0/spk -o spk
+chmod +x spk
+sudo mv spk /usr/local/bin/spk</code></pre>
+  <p>Full release notes and source: <a href="https://github.com/Smech-Labs/spk/releases/tag/v2.0.0" target="_blank" rel="noopener">github.com/Smech-Labs/spk/releases/tag/v2.0.0</a></p>
 
   <h3>Commands</h3>
 
@@ -244,19 +260,20 @@ spk compile --list smechos       # list all phases</code></pre>
   </div>
 
   <h2 id="build">Building from Source</h2>
-  <p>SmechOS is built entirely by SmechDeploy. See the
-     <a href="smechdeploy.html">SmechDeploy documentation</a> for the full pipeline
-     and script reference.</p>
+  <p>SmechOS is built entirely by <a href="smechdeploy.html">spk-compile</a> — a single
+     standalone Python 3 script with no external dependencies.</p>
 
-  <pre><code># Clone SmechDeploy
-git clone https://github.com/Smech-Labs/SmechDeploy.git
-cd SmechDeploy
+  <pre><code># Get spk-compile
+curl -fsSL https://github.com/Smech-Labs/spk-compile/releases/download/v2.1.0/spk-compile.py -o spk-compile.py
 
-# Run the full SmechOS build (requires root for mount/chroot steps)
-bash bin/build_smechos.sh</code></pre>
+# Full SmechOS build (requires root for make install steps)
+sudo python3 spk-compile.py smechos
 
-  <p>The build reads <code>build_order.txt</code> and runs each script in order.
-     Phase 1 operates directly on <code>images/part2.img</code> via
+# Or via spk
+spk compile smechos</code></pre>
+
+  <p>See the <a href="smechdeploy.html">spk-compile documentation</a> for the full phase
+     reference. Phase 1 operates directly on <code>images/part2.img</code> via
      <code>debugfs</code> without mounting. Phase 2 compiles sources from
      <code>essentials/</code> into <code>/mnt/smechos</code>.</p>
 </main>
