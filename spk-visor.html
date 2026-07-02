@@ -121,9 +121,11 @@
   <div class="cmd-card">
     <div class="cmd-card-header"><code>spk install &lt;pkg&gt;</code></div>
     <div class="cmd-card-body">
-      On SmechVisor, arbitrary installs are still discouraged — the OS is a sealed
-      appliance. For system updates use <code>spk system-upgrade</code>.
-      This command is present for emergency use only.
+      Fully supported on SmechVisor. Fetches and extracts any package from the
+      Smech Labs repository into <code>/</code>. Use this to add packages to a
+      running SmechVisor node without a full system upgrade.
+      <pre><code>spk install smechvisor-daemon
+spk install firmware</code></pre>
     </div>
   </div>
 
