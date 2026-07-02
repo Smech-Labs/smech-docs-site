@@ -78,7 +78,8 @@
       <tr><td>Toolkit</td><td>Qt 6</td><td>Built from source, no distro packages</td></tr>
       <tr><td>Kernel</td><td>Linux 6.12.16</td><td>Compiled by <code>compile_kernel.sh</code></td></tr>
       <tr><td>Bootloader</td><td>GRUB 2.12</td><td>EFI + BIOS hybrid</td></tr>
-      <tr><td>Package manager</td><td>spk</td><td>Rust binary, fetches .tar.xz from GitHub Releases</td></tr>
+      <tr><td>Package manager</td><td>spk v2</td><td>Rust binary, unified install/upgrade/compile/deploy</td></tr>
+      <tr><td>App store frontend</td><td>Plasma Discover</td><td>Backed by PackageKit → spk packagekit-backend</td></tr>
       <tr><td>Installer</td><td>smech-installer</td><td>Rust + Newt TUI, netinst</td></tr>
     </tbody>
   </table>
@@ -122,42 +123,72 @@
   </div>
 
   <h2 id="spk">spk — SmechOS Package Manager</h2>
-  <p><code>spk</code> (SmechOS Sovereign Package Keeper) is a zero-dependency Rust binary
-     that manages packages on a running SmechOS system. It does not call
+  <p><code>spk</code> v2.0 (SmechOS Sovereign Package Keeper) is a zero-dependency Rust binary
+     that manages packages on any Smech Labs OS. It does not call
      <code>emerge</code>, <code>apt</code>, <code>flatpak</code>, or any other external
      package manager. Every package is a <code>.tar.xz</code> archive fetched from the
      <a href="https://github.com/Smech-Labs/SmechDeploy/releases" target="_blank">SmechDeploy GitHub Releases</a>
-     via <code>curl</code> and extracted with <code>tar</code>.</p>
+     via <code>curl</code> and extracted with <code>tar</code>. Plasma Discover and other
+     PackageKit-aware frontends can install packages through SPK via the built-in
+     PackageKit script backend.</p>
 
   <h3>Commands</h3>
 
   <div class="cmd-card">
-    <div class="cmd-card-header"><code>spk system-install &lt;package&gt;</code></div>
+    <div class="cmd-card-header"><code>spk install &lt;package&gt;</code></div>
     <div class="cmd-card-body">
-      Fetches and extracts a system package into the root filesystem.
+      Fetches and extracts a package into the root filesystem.
       When run on the build host with <code>/mnt/smechos</code> mounted,
-      it targets that mount instead of <code>/</code>.
-      <pre><code>spk system-install kernel-modules
-spk system-install mesa-graphics</code></pre>
+      it targets that mount instead of <code>/</code>. Replaces the old
+      <code>system-install</code> and <code>userland-install</code> split — all
+      packages are now installed with one unified command.
+      <pre><code>spk install kernel-modules
+spk install plasma
+spk install plasma-discover</code></pre>
     </div>
   </div>
 
   <div class="cmd-card">
-    <div class="cmd-card-header"><code>spk userland-install &lt;package&gt;</code></div>
+    <div class="cmd-card-header"><code>spk system-upgrade</code></div>
     <div class="cmd-card-body">
-      Same as <code>system-install</code> but semantically intended for desktop
-      applications and userland packages. Behaves identically under the hood.
-      <pre><code>spk userland-install plasma
-spk userland-install kde-frameworks</code></pre>
+      Re-fetches and reinstalls every known package from the release.
+      On SmechVisor, performs a live OTA upgrade: the daemon binary is hot-swapped
+      without a reboot; base system components flag for reboot separately.
+      <pre><code>spk system-upgrade</code></pre>
     </div>
   </div>
 
   <div class="cmd-card">
-    <div class="cmd-card-header"><code>spk entire-system-upgrade</code></div>
+    <div class="cmd-card-header"><code>spk compile &lt;profile&gt; [options]</code></div>
     <div class="cmd-card-body">
-      Re-fetches and reinstalls every known SmechOS package from the release.
-      Equivalent to a full system update. Requires internet access.
-      <pre><code>spk entire-system-upgrade</code></pre>
+      Native build orchestration — delegates to <code>spk-compile.py</code>
+      (Project SmechDeployV2). Builds a full OS from source.
+      <pre><code>spk compile smechos              # full SmechOS build
+spk compile smechvisor           # full SmechVisor build
+spk compile smechos --phase kde  # run one phase only
+spk compile iso smechvisor       # build install ISO
+spk compile iso shim             # build deploy shim ISO
+spk compile --list smechos       # list all phases</code></pre>
+    </div>
+  </div>
+
+  <div class="cmd-card">
+    <div class="cmd-card-header"><code>spk deploy-system-img-copy &lt;code&gt;</code></div>
+    <div class="cmd-card-body">
+      Pushes SmechVisor packages to a target node running the Deploy Shim ISO.
+      Discovers the shim via UDP broadcast and streams packages over TCP.
+      Run this on the donor SmechVisor node.
+      <pre><code>spk deploy-system-img-copy a1b2c3d</code></pre>
+    </div>
+  </div>
+
+  <div class="cmd-card">
+    <div class="cmd-card-header"><code>spk receive-deploy</code></div>
+    <div class="cmd-card-body">
+      Runs on the target node (normally started automatically by the shim).
+      Generates a 7-character code, broadcasts it via UDP every 2 seconds,
+      and opens a TCP listener for the donor to stream packages into
+      <code>/mnt/target</code>. Reboots when transfer completes.
     </div>
   </div>
 
@@ -165,14 +196,33 @@ spk userland-install kde-frameworks</code></pre>
     <div class="cmd-card-header"><code>spk about</code></div>
     <div class="cmd-card-body">
       Displays the Smech-Sovereign Workstation 2026 hardware specs and
-      spk architecture credits.
+      SPK version info.
     </div>
   </div>
+
+  <div class="cmd-card">
+    <div class="cmd-card-header"><code>spk version</code></div>
+    <div class="cmd-card-body">
+      Prints the SPK version string. Current release: <code>2.0.0</code>.
+    </div>
+  </div>
+
+  <h3>PackageKit integration (Plasma Discover)</h3>
+  <p>SPK ships a PackageKit script backend at
+     <code>/usr/lib/packagekit-backend/pk-backend-spk.py</code>.
+     PackageKit calls this backend, which forwards the protocol to
+     <code>spk packagekit-backend</code>. This means Plasma Discover — and any
+     other PackageKit-aware frontend — can browse, install, and update SmechOS
+     packages graphically without touching the terminal.</p>
+  <p>The Plasma Discover and PackageKit binaries are built by
+     <code>bin/compile_plasma_discover.sh</code> and included in the SmechOS
+     image via the <code>discover</code> phase in <code>spk-compile.py</code>.</p>
 
   <h3>Known packages</h3>
   <table>
     <thead><tr><th>Package</th><th>Contents</th></tr></thead>
     <tbody>
+      <tr><td><code>base-system</code></td><td>GNU userland compiled against musl (coreutils, bash, tar, gzip, xz…)</td></tr>
       <tr><td><code>kernel-modules</code></td><td>Linux 6.12.16 kernel modules</td></tr>
       <tr><td><code>firmware</code></td><td>CPU microcode, GPU firmware blobs</td></tr>
       <tr><td><code>bootloader-grub</code></td><td>GRUB 2.12 EFI + BIOS binaries</td></tr>
@@ -180,14 +230,17 @@ spk userland-install kde-frameworks</code></pre>
       <tr><td><code>plasma</code></td><td>KDE Plasma 6.6.5 desktop</td></tr>
       <tr><td><code>qt6</code></td><td>Qt 6 runtime libraries</td></tr>
       <tr><td><code>mesa-graphics</code></td><td>Mesa OpenGL/Vulkan stack</td></tr>
+      <tr><td><code>plasma-discover</code></td><td>Plasma Discover GUI package manager</td></tr>
+      <tr><td><code>packagekit-spk</code></td><td>PackageKit daemon + SPK backend</td></tr>
     </tbody>
   </table>
 
   <div class="callout note">
-    <strong>Note</strong>
-    <code>base-system</code> is not yet in the known package list — the tarball
-    in the current release is incomplete and needs to be rebuilt.
-    Use the installer ISO for fresh installs.
+    <strong>Legacy aliases</strong>
+    The old <code>system-install</code>, <code>userland-install</code>, and
+    <code>entire-system-upgrade</code> commands still work in SPK v2 — they print
+    a deprecation notice and forward to the new command. Update any scripts to use
+    the new names.
   </div>
 
   <h2 id="build">Building from Source</h2>
