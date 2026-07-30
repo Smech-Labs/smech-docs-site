@@ -267,6 +267,7 @@ tr:last-child td { border-bottom: none; }
 
 .badge-alpha { background: rgba(255,90,78,0.15); color: #ff5a4e; }
 .badge-beta  { background: rgba(255,184,78,0.15); color: #ffb84e; }
+.badge-rc    { background: rgba(78,200,120,0.15); color: #4ec878; }
 
 /* ── Command reference cards ── */
 .cmd-card {
