@@ -25,7 +25,8 @@
     <span class="nav-section-label">SmechOS</span>
     <a href="smechos.html" class="section-link active">Overview</a>
     <a href="smechos.html#architecture">Architecture</a>
-    <a href="smechos.html#installing">Installing</a>
+    <a href="smechos.html#installing">Installing (Live ISO)</a>
+    <a href="smechos.html#netinst-legacy">netinst Installer (EoL)</a>
     <a href="smechos.html#spk">spk Package Manager</a>
     <a href="smechos.html#build">Building from Source</a>
 
@@ -65,39 +66,78 @@
   </p>
 
   <h2 id="architecture">Architecture</h2>
-  <p>SmechOS is assembled by <a href="smechdeploy.html">SmechDeploy</a> — a pipeline of shell and Python
-     scripts that compile upstream sources and write the result into raw disk images.</p>
+  <p>SmechOS is assembled by <a href="smechdeploy.html">SmechDeploy</a> (now <code>spk-compile</code>) —
+     a pipeline of Python scripts that compile upstream sources and write the result into a
+     bootable live ISO. This reflects the <code>smechos-plasma-live</code> build profile, the one
+     currently shipping as <a href="https://os.smech.xyz/downloads.html" target="_blank">SmechOS 1.0
+     Release Candidate 1</a>.</p>
 
   <table>
     <thead><tr><th>Layer</th><th>Component</th><th>Notes</th></tr></thead>
     <tbody>
-      <tr><td>Desktop</td><td>KDE Plasma 6.6.5</td><td>Built from source via SmechDeploy</td></tr>
-      <tr><td>Display server</td><td>Wayland (KWin compositor)</td><td>X11/XWayland available for legacy apps</td></tr>
-      <tr><td>Init system</td><td>OpenRC</td><td>No systemd — plain shell service scripts</td></tr>
-      <tr><td>Graphics</td><td>Mesa (compiled from source)</td><td>AMD RDNA / Intel / virtio-gpu</td></tr>
-      <tr><td>Toolkit</td><td>Qt 6</td><td>Built from source, no distro packages</td></tr>
-      <tr><td>Kernel</td><td>Linux 6.12.16</td><td>Compiled by <code>compile_kernel.sh</code></td></tr>
-      <tr><td>Bootloader</td><td>GRUB 2.12</td><td>EFI + BIOS hybrid</td></tr>
+      <tr><td>Desktop</td><td>KDE Plasma 6.7.2</td><td>KDE Frameworks 6.27.0, built from source via spk-compile</td></tr>
+      <tr><td>Display server</td><td>Wayland (KWin compositor)</td><td>Xwayland available for legacy X11 apps</td></tr>
+      <tr><td>Init system</td><td>systemd 261</td><td>Rebuilt from source with PAM support enabled</td></tr>
+      <tr><td>Login manager</td><td>PLM (Plasma Login Manager)</td><td>Autologin straight to desktop on the live ISO</td></tr>
+      <tr><td>Graphics</td><td>Mesa (compiled from source)</td><td>AMD RDNA/GCN, Intel (incl. Gemini Lake), virtio-gpu; amdgpu/i915 firmware bundled</td></tr>
+      <tr><td>Toolkit</td><td>Qt 6.10.3</td><td>Built from source with fontconfig + XCB support</td></tr>
+      <tr><td>Kernel</td><td>Linux 6.12.16</td><td>Compiled as part of the spk-compile pipeline</td></tr>
+      <tr><td>Bootloader</td><td>GRUB 2.12</td><td>EFI + BIOS hybrid, El Torito live boot</td></tr>
       <tr><td>Package manager</td><td>spk v2</td><td>Rust binary, unified install/upgrade/compile/deploy</td></tr>
       <tr><td>App store frontend</td><td>Plasma Discover</td><td>Backed by PackageKit → spk packagekit-backend</td></tr>
-      <tr><td>Installer</td><td>smech-installer</td><td>Rust + Newt TUI, netinst</td></tr>
+      <tr><td>Installer</td><td>Calamares</td><td>Graphical installer, optional -- boots straight to a live desktop either way</td></tr>
     </tbody>
   </table>
 
   <div class="callout note">
     <strong>Note</strong>
     SmechOS does not use Portage, APT, DNF, or any other external package manager.
-    <code>spk</code> downloads pre-built tarballs from the SmechDeploy GitHub Release
+    <code>spk</code> downloads pre-built tarballs from GitHub Releases
     and extracts them directly. There is no package database or dependency resolver —
     packages are designed to be self-contained.
   </div>
 
-  <h2 id="installing">Installing</h2>
-  <p>SmechOS ships as a network installer ISO (<code>netinst</code>). The installer
-     downloads packages from the internet during installation — you need a wired
-     Ethernet connection for the install process.</p>
+  <h2 id="installing">Installing (Live ISO)</h2>
+  <p>SmechOS ships as a live ISO. Boot it and you're straight into a working KDE Plasma
+     desktop -- no install step required. Calamares is available on the live desktop if
+     you want to commit the install to disk.</p>
 
   <h3>Requirements</h3>
+  <ul>
+    <li>x86_64 CPU with SSE4.2</li>
+    <li>4 GB RAM minimum (8 GB recommended for KDE Plasma)</li>
+    <li>40 GB disk space minimum (only if installing to disk via Calamares)</li>
+    <li>UEFI or BIOS boot</li>
+  </ul>
+
+  <h3>Steps</h3>
+  <ol class="steps">
+    <li>Download the ISO from <a href="https://os.smech.xyz/downloads.html" target="_blank">os.smech.xyz/downloads</a> and verify its checksum.</li>
+    <li>Write to USB: <pre><code>sudo dd if=SmechOS-1.0-RC1.iso of=/dev/sdX bs=4M status=progress && sync</code></pre></li>
+    <li>Boot the target machine from the USB. Autologin takes you straight to the KDE Plasma desktop.</li>
+    <li>Optional: run Calamares from the desktop to install to disk.</li>
+  </ol>
+
+  <div class="callout warn">
+    <strong>Warning</strong>
+    This is a Release Candidate, not a stable release. The core boot path (live desktop,
+    autologin, GPU rendering) is verified on real hardware, but it hasn't had a broad
+    hardware compatibility pass yet.
+  </div>
+
+  <h2 id="netinst-legacy">netinst Installer (EoL)</h2>
+  <div class="callout eol">
+    <strong>End of Life</strong>
+    The network installer described below is no longer maintained or recommended --
+    use the <a href="#installing">live ISO</a> above instead. Kept here for reference
+    since the underlying <code>smechos</code> build profile (musl + OpenRC, distinct
+    from the live ISO's systemd + glibc profile) may be revisited in the future.
+  </div>
+  <p>SmechOS previously shipped as a network installer ISO (<code>netinst</code>), built
+     from a separate musl + OpenRC profile. The installer downloaded packages from the
+     internet during installation and required a wired Ethernet connection.</p>
+
+  <h3>Requirements (netinst, EoL)</h3>
   <ul>
     <li>x86_64 CPU with SSE4.2</li>
     <li>4 GB RAM minimum (8 GB recommended for KDE Plasma)</li>
@@ -106,21 +146,13 @@
     <li>Wired Ethernet for the installer</li>
   </ul>
 
-  <h3>Steps</h3>
+  <h3>Steps (netinst, EoL)</h3>
   <ol class="steps">
-    <li>Download the installer ISO from <a href="https://os.smech.xyz/downloads.html" target="_blank">os.smech.xyz/downloads</a> and verify its checksum.</li>
     <li>Write to USB: <pre><code>sudo dd if=smechos-installer-minimal-netinst.iso of=/dev/sdX bs=4M status=progress && sync</code></pre></li>
     <li>Boot the target machine from the USB. The installer launches automatically.</li>
     <li>Follow the TUI wizard: language → country → timezone → hardware detection → network → partitioning → base install → profile → GRUB → done.</li>
-    <li>Remove the USB and reboot. SmechOS boots into KDE Plasma.</li>
+    <li>Remove the USB and reboot.</li>
   </ol>
-
-  <div class="callout warn">
-    <strong>Warning</strong>
-    This is an early beta release. The installer boots and walks through all wizard steps
-    but has not been verified for a complete end-to-end install on all real hardware
-    configurations. Treat it as a preview.
-  </div>
 
   <h2 id="spk">spk — SmechOS Package Manager</h2>
   <p><code>spk</code> v2.0 (Smech Sovereign Package Keeper) is a zero-dependency Rust binary
@@ -179,12 +211,12 @@ spk install plasma-discover</code></pre>
     <div class="cmd-card-body">
       Native build orchestration — delegates to <code>spk-compile.py</code>
       (Project SmechDeployV2). Builds a full OS from source.
-      <pre><code>spk compile smechos              # full SmechOS build
-spk compile smechvisor           # full SmechVisor build
-spk compile smechos --phase kde  # run one phase only
-spk compile iso smechvisor       # build install ISO
-spk compile iso shim             # build deploy shim ISO
-spk compile --list smechos       # list all phases</code></pre>
+      <pre><code>spk compile smechos-plasma-live              # full SmechOS live ISO build
+spk compile smechvisor                       # full SmechVisor build
+spk compile smechos-plasma-live --phase kde  # run one phase only
+spk compile iso smechvisor                   # build install ISO
+spk compile iso shim                         # build deploy shim ISO
+spk compile --list smechos-plasma-live       # list all phases</code></pre>
     </div>
   </div>
 
@@ -238,12 +270,12 @@ spk compile --list smechos       # list all phases</code></pre>
   <table>
     <thead><tr><th>Package</th><th>Contents</th></tr></thead>
     <tbody>
-      <tr><td><code>base-system</code></td><td>GNU userland compiled against musl (coreutils, bash, tar, gzip, xz…)</td></tr>
+      <tr><td><code>base-system</code></td><td>GNU userland compiled against glibc (coreutils, bash, tar, gzip, xz…)</td></tr>
       <tr><td><code>kernel-modules</code></td><td>Linux 6.12.16 kernel modules</td></tr>
-      <tr><td><code>firmware</code></td><td>CPU microcode, GPU firmware blobs</td></tr>
+      <tr><td><code>firmware</code></td><td>CPU microcode, amdgpu/i915 GPU firmware blobs</td></tr>
       <tr><td><code>bootloader-grub</code></td><td>GRUB 2.12 EFI + BIOS binaries</td></tr>
-      <tr><td><code>kde-frameworks</code></td><td>KDE Frameworks 6 libraries</td></tr>
-      <tr><td><code>plasma</code></td><td>KDE Plasma 6.6.5 desktop</td></tr>
+      <tr><td><code>kde-frameworks</code></td><td>KDE Frameworks 6.27.0 libraries</td></tr>
+      <tr><td><code>plasma</code></td><td>KDE Plasma 6.7.2 desktop</td></tr>
       <tr><td><code>qt6</code></td><td>Qt 6 runtime libraries</td></tr>
       <tr><td><code>mesa-graphics</code></td><td>Mesa OpenGL/Vulkan stack</td></tr>
       <tr><td><code>plasma-discover</code></td><td>Plasma Discover GUI package manager</td></tr>
@@ -266,11 +298,11 @@ spk compile --list smechos       # list all phases</code></pre>
   <pre><code># Get spk-compile
 curl -fsSL https://github.com/Smech-Labs/spk-compile/releases/download/v2.2.0/spk-compile.py -o spk-compile.py
 
-# Full SmechOS build (requires root for make install steps)
-sudo python3 spk-compile.py smechos
+# Full SmechOS live ISO build (requires root for make install steps)
+sudo python3 spk-compile.py smechos-plasma-live
 
 # Or via spk
-spk compile smechos</code></pre>
+spk compile smechos-plasma-live</code></pre>
 
   <p>See the <a href="smechdeploy.html">spk-compile documentation</a> for the full phase
      reference. Phase 1 operates directly on <code>images/part2.img</code> via

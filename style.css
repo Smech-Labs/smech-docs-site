@@ -221,9 +221,15 @@ pre code {
   background: rgba(255,184,78,0.06);
 }
 
+.callout.eol {
+  border-color: #8a8f98;
+  background: rgba(138,143,152,0.06);
+}
+
 .callout strong { display: block; margin-bottom: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
 .callout.note strong { color: #4e9fff; }
 .callout.warn strong { color: #ffb84e; }
+.callout.eol strong { color: #8a8f98; }
 .callout strong { color: var(--accent); }
 
 /* ── Tables ── */
