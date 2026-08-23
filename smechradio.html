@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smech Radio -- Smech Labs Docs</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="https://labs.smech.xyz/logo.svg" type="image/svg+xml">
+</head>
+<body>
+
+<button class="nav-toggle" id="navToggle" aria-label="Toggle navigation"><span></span><span></span><span></span></button>
+
+<aside class="sidebar">
+  <a class="sidebar-brand" href="index.html">
+    <img src="https://labs.smech.xyz/logo.svg" alt="Smech Labs">
+    <span>Smech <em>Docs</em></span>
+  </a>
+  <nav class="sidebar-nav">
+    <span class="nav-section-label">Getting Started</span>
+    <a href="index.html" class="section-link">Introduction</a>
+    <a href="index.html#projects">Projects Overview</a>
+    <a href="index.html#philosophy">Philosophy</a>
+
+    <span class="nav-section-label">SmechOS</span>
+    <a href="smechos.html" class="section-link">Overview</a>
+    <a href="smechos.html#architecture">Architecture</a>
+    <a href="smechos.html#installing">Installing</a>
+    <a href="smechos.html#spk">spk Package Manager</a>
+    <a href="smechos.html#build">Building from Source</a>
+
+    <span class="nav-section-label">SmechVisor</span>
+    <a href="smechvisor.html" class="section-link">Overview</a>
+    <a href="smechvisor.html#architecture">Architecture</a>
+    <a href="smechvisor.html#installing">Installing</a>
+    <a href="smechvisor.html#dashboard">Dashboard</a>
+    <a href="smechvisor.html#iommu">IOMMU &amp; VFIO</a>
+    <a href="smechvisor.html#api">API Reference</a>
+    <a href="spk-visor.html" class="section-link">spk-visor</a>
+    <a href="spk-visor.html#ota">OTA Updates</a>
+    <a href="spk-visor.html#deploy">Network Deploy</a>
+    <a href="spk-visor.html#shim">Deploy Shim ISO</a>
+
+    <span class="nav-section-label">Build Pipeline</span>
+    <a href="smechdeploy.html" class="section-link">SmechDeploy</a>
+    <a href="smechdeploy.html#profiles">Build Profiles</a>
+    <a href="smechdeploy.html#scripts">Script Reference</a>
+
+    <span class="nav-section-label">Smech Radio</span>
+    <a href="smechradio.html" class="section-link active">Overview</a>
+    <a href="smechradio.html#architecture">Architecture</a>
+    <a href="smechradio.html#endpoints">Domains &amp; Endpoints</a>
+    <a href="smechradio.html#deploy">Deployment</a>
+  </nav>
+  <div class="sidebar-footer">
+    <a href="https://labs.smech.xyz" target="_blank">labs.smech.xyz</a> &nbsp;·&nbsp;
+    <a href="https://github.com/Smech-Labs" target="_blank">GitHub</a>
+  </div>
+</aside>
+
+<main class="main">
+  <h1>
+    <span class="page-label">Smech Radio</span>
+    Overview
+  </h1>
+  <p class="page-intro">
+    Smech Radio is Smech Labs' sovereign web radio node — a self-hosted Icecast/ICY
+    relay with a modern web player portal and server-side ad insertion (SSAI) for a
+    single royalty-free live broadcast feed. No third-party streaming platform in the
+    signal path.
+  </p>
+
+  <h2 id="endpoints">Domains &amp; Endpoints</h2>
+  <table>
+    <thead><tr><th>Endpoint</th><th>Protocol</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><a href="https://radio.smech.xyz" target="_blank" rel="noopener">radio.smech.xyz</a></td>
+        <td>HTTPS</td>
+        <td>Primary Portal &amp; Web Player — player UI, live now-playing metadata, ad slots</td>
+      </tr>
+      <tr>
+        <td><a href="https://radio.smech.xyz/stream" target="_blank" rel="noopener">radio.smech.xyz/stream</a></td>
+        <td>Icecast / ICY over HTTPS</td>
+        <td>Real-Time Live Stream Endpoint — SSAI pre-roll, then the live broadcast feed</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>Sovereign Digital Web Radio &amp; Live Stream2Cast Audio Node — Icecast/ICY protocol,
+     real-time broadcast feed, SSAI / dynamic pre-roll integration via VAST 4.0.</p>
+
+  <h2 id="architecture">Architecture</h2>
+  <p>Three pieces, one domain:</p>
+  <ul>
+    <li><strong>Upstream Icecast source</strong> — the actual live broadcast (self-hosted on the VPS, or a free-tier Icecast relay provider). Smech Radio never originates audio itself; it relays and instruments an existing mountpoint.</li>
+    <li><strong>Relay app (Bun/Node)</strong> — terminates client connections at <code>/stream</code>, strips the upstream's own ICY interleaving, prepends a pre-roll ad, and re-interleaves fresh <code>StreamTitle</code> metadata on its own byte boundaries. Also serves <code>/</code> and <code>/metadata</code>.</li>
+    <li><strong>Static portal</strong> — the player page itself, deployable as-is to GitHub Pages for a CDN-backed mirror.</li>
+  </ul>
+
+  <div class="callout note">
+    <strong>Why not pure GitHub Pages</strong>
+    GitHub Pages only serves static files — it can't do path-based routing to a live
+    proxy on the same host. <code>/stream</code> has to be answered by a process that
+    can hold an open connection and write bytes as they arrive. See
+    <a href="#deploy">Deployment</a> for how <code>radio.smech.xyz</code> is split
+    between the two.
+  </div>
+
+  <h2 id="deploy">Deployment</h2>
+  <p>Two supported upstream sources, picked via <code>UPSTREAM_ICECAST_URL</code>:</p>
+  <ol class="steps">
+    <li><strong>Free Icecast relay provider</strong> — point <code>UPSTREAM_ICECAST_URL</code> at a hosted free-tier mountpoint. Fastest to stand up, no server to manage for the audio source itself.</li>
+    <li><strong>Self-hosted Icecast on a cheap low-RAM/low-core VPS</strong> — Icecast2 itself is light (fine on a 1 vCPU / 512MB–1GB box); the relay app adds negligible overhead since it streams rather than buffers.</li>
+  </ol>
+  <p>Because GitHub Pages can't proxy <code>/stream</code>, the same VPS that runs
+     Icecast (or reaches the free relay) also runs the Bun relay app behind Nginx,
+     and DNS for the apex <code>radio.smech.xyz</code> points at that VPS — Nginx
+     serves the portal directly and reverse-proxies <code>/stream</code> and
+     <code>/metadata</code> to the Bun process on localhost. The GitHub Pages copy of
+     the portal (same <code>public/index.html</code>) stays as a CDN-backed mirror;
+     its player simply points at the VPS-hosted <code>/stream</code> URL instead of
+     a relative path.</p>
+  <pre><code># On the VPS
+git clone https://github.com/Smech-Labs/smech-radio.git
+cd smech-radio
+bun install
+cp .env.example .env   # set UPSTREAM_ICECAST_URL, AD_EXCHANGE_VAST_URL, ADSENSE_CLIENT_ID
+bun run server/index.ts</code></pre>
+  <p>Nginx terminates TLS for <code>radio.smech.xyz</code> and reverse-proxies
+     <code>/stream</code> + <code>/metadata</code> to <code>127.0.0.1:8787</code>
+     (see <code>deploy/nginx.conf.example</code> in the repo).</p>
+</main>
+
+<script src="nav.js"></script>
+</body>
+</html>
