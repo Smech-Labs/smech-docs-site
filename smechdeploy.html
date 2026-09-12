@@ -180,10 +180,30 @@ docker run --rm --privileged --cgroupns=host \
     -v /path/to/smechos_build_root:/mnt/smechos_build_root \
     -v /tmp/smechos_build:/tmp/smechos_build \
     ghcr.io/smech-labs/smechos-build:latest smechos-plasma-live</code></pre>
-  <p>The finished ISO lands in a sibling directory named
-     <code>smechos-iso-output/smechos-plasma-live.iso</code>, next to wherever
-     <code>smechos_build_root</code> was mounted.</p>
-  <pre><code>cd smechos-iso-output
+  <div class="callout warn">
+    <strong>This only builds and bundles the rootfs — it does not produce an ISO</strong>
+    Packing is a genuinely separate <code>spk-compile.py</code> invocation
+    (<code>cmd_iso()</code>, triggered by <code>--iso live</code>, runs
+    <em>instead of</em> the phase list, not after it). Phase completion is
+    stamp-file-persisted, so this second run doesn't redo any of the first
+    one's work — it only assembles the ISO from the already-built rootfs.
+  </div>
+  <pre><code>mkdir -p /path/to/smechos-iso-output
+docker run --rm --privileged --cgroupns=host \
+    -v /path/to/spk-compile-sources:/mnt/spk-compile-sources \
+    -v /path/to/smechos_build_root:/mnt/smechos_build_root \
+    -v /tmp/smechos_build:/tmp/smechos_build \
+    -v /path/to/smechos-iso-output:/mnt/smechos-iso-output \
+    ghcr.io/smech-labs/smechos-build:latest smechos-plasma-live --iso live</code></pre>
+  <p>The finished ISO lands at
+     <code>smechos-iso-output/smechos-plasma-live.iso</code>.</p>
+  <p><strong>The container runs as root</strong>, so the ISO output
+     directory ends up root-owned on the host. Hashing/signing as a
+     regular user afterward needs a <code>chown</code> first, or
+     <code>sha256sum ... | tee</code> and <code>gpg</code> fail to write
+     their output files silently:</p>
+  <pre><code>sudo chown -R $(whoami):$(whoami) /path/to/smechos-iso-output
+cd /path/to/smechos-iso-output
 sha256sum smechos-plasma-live.iso > smechos-plasma-live.iso.sha256
 gpg --detach-sign --armor smechos-plasma-live.iso</code></pre>
   <p>If a phase fails on a missing package, that's normal — it's a one-line
