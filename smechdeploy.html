@@ -268,13 +268,14 @@ python3 spk-compile.py --list smechvisor</code></pre>
       <tr><td>16</td><td><code>xwayland-deps</code></td><td>Fetch Xwayland + xkbcomp + xkb-data</td></tr>
       <tr><td>17</td><td><code>qt6uitools</code></td><td>Ensure Qt6UITools .so is present</td></tr>
       <tr><td>18</td><td><code>kernel</code></td><td>Compile Linux 6.12.16: defconfig + KVM, VFIO, IOMMU, RDNA, EFI stub, virtio</td></tr>
-      <tr><td>19</td><td><code>firmware</code></td><td>Bundle GPU firmware (amdgpu + i915 + radeon)</td></tr>
+      <tr><td>19</td><td><code>firmware</code></td><td>Clone the full upstream linux-firmware tree from git.kernel.org (pinned tag)</td></tr>
       <tr><td>20</td><td><code>patch-metadata</code></td><td>Patch <code>/etc/os-release</code> and KDE .desktop files for SmechOS branding</td></tr>
       <tr><td>21</td><td><code>discover</code></td><td>Compile AppStream 1.0.4, PackageKit 1.3.0, compile Plasma Discover</td></tr>
       <tr><td>22</td><td><code>calamares</code></td><td>Build the Calamares graphical installer</td></tr>
       <tr><td>23</td><td><code>firefox</code></td><td>Install Mozilla Firefox stable</td></tr>
       <tr><td>24</td><td><code>live-initramfs</code></td><td>Build the busybox live initramfs</td></tr>
-      <tr><td>—</td><td><code>bundle</code></td><td>Bundle output into spk-installable .tar.xz packages</td></tr>
+      <tr><td>—</td><td><code>bundle</code></td><td>Bundle output into spk-installable category-level .tar.xz packages</td></tr>
+      <tr><td>—</td><td><code>bundle-spkg</code></td><td>Emit one real <code>.spkg</code> per tracked component (currently every KF6/Plasma/Qt6 module) from recorded install manifests</td></tr>
     </tbody>
   </table>
 
