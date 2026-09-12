@@ -43,6 +43,7 @@
 
     <span class="nav-section-label">Build Pipeline</span>
     <a href="smechdeploy.html" class="section-link active">spk-compile</a>
+    <a href="smechdeploy.html#container">Building in a Container</a>
     <a href="smechdeploy.html#profiles">Build Profiles</a>
     <a href="smechdeploy.html#phases">Phase Reference</a>
 
@@ -108,12 +109,22 @@ spk compile --list smechos</code></pre>
     <thead><tr><th>Output</th><th>Profile</th><th>Command</th></tr></thead>
     <tbody>
       <tr>
-        <td>SmechOS root filesystem</td>
+        <td>SmechOS root filesystem (glibc/systemd desktop, current)</td>
+        <td><code>smechos-plasma-live</code></td>
+        <td><code>python3 spk-compile.py smechos-plasma-live</code></td>
+      </tr>
+      <tr>
+        <td>SmechOS live ISO (glibc/systemd desktop, current)</td>
+        <td><code>smechos-plasma-live</code></td>
+        <td><code>python3 spk-compile.py smechos-plasma-live --iso live</code></td>
+      </tr>
+      <tr>
+        <td>SmechOS root filesystem (musl/OpenRC, lightweight/legacy)</td>
         <td><code>smechos</code></td>
         <td><code>python3 spk-compile.py smechos</code></td>
       </tr>
       <tr>
-        <td>SmechOS install ISO</td>
+        <td>SmechOS install ISO (musl/OpenRC, lightweight/legacy)</td>
         <td><code>smechos</code></td>
         <td><code>python3 spk-compile.py smechos --iso install</code></td>
       </tr>
@@ -136,16 +147,56 @@ spk compile --list smechos</code></pre>
   </table>
 
   <h2>Prerequisites</h2>
+  <div class="callout warn">
+    <strong>Build in the container, not on bare metal</strong>
+    A full <code>smechos-plasma-live</code> build needs an exact set of host
+    packages (a specific GCC version, matching Qt6/KDE build deps, kernel
+    build tools) that is impractical to reproduce by hand. The
+    <code>Dockerfile</code> in the repo builds this environment once,
+    reliably, from a plain <code>ubuntu:24.04</code> base — see
+    "Building in a container" below. Running <code>spk-compile.py</code>
+    directly against a bare host is only realistic for
+    <code>build-one.sh</code>'s single-package builds.
+  </div>
   <ul>
-    <li>x86_64 Linux host (Debian or Ubuntu recommended)</li>
-    <li>Python 3.8+ (stdlib only — no pip required)</li>
-    <li>Root access (for <code>make install</code>, <code>ninja install</code>, module installs)</li>
-    <li>Host packages: <code>build-essential cmake ninja-build meson cargo rustc xorriso grub-efi-amd64-bin grub-pc-bin libnewt-dev libdrm-dev libxkbcommon-dev libinput-dev</code></li>
+    <li>x86_64 Linux host with Docker or Podman</li>
+    <li>Root / <code>--privileged</code> container access (kernel build, module installs)</li>
     <li>~50 GB free disk space for source downloads and build artifacts</li>
     <li>Internet access (sources are downloaded on demand and cached)</li>
   </ul>
-  <p>Source tarballs are cached in <code>../spk-compile-sources/</code> (adjacent to <code>--target</code>).
-     Re-runs skip already-cached files.</p>
+  <p>Source tarballs are cached in <code>spk-compile-sources/</code> (adjacent to
+     <code>--target</code>, bind-mount this as a persistent volume). Re-runs
+     skip already-cached files and already-completed phases via stamp files
+     under <code>spk-compile-sources/.stamps/</code>.</p>
+
+  <h2 id="container">Building in a container</h2>
+  <pre><code># Build the compile image once (cached after the first run)
+podman build -t ghcr.io/smech-labs/smechos-build:latest -f Dockerfile .
+# docker build works identically if you have Docker instead of podman
+
+# Run the full build
+docker run --rm --privileged --cgroupns=host \
+    -v /path/to/spk-compile-sources:/mnt/spk-compile-sources \
+    -v /path/to/smechos_build_root:/mnt/smechos_build_root \
+    -v /tmp/smechos_build:/tmp/smechos_build \
+    ghcr.io/smech-labs/smechos-build:latest smechos-plasma-live</code></pre>
+  <p>The finished ISO lands in a sibling directory named
+     <code>smechos-iso-output/smechos-plasma-live.iso</code>, next to wherever
+     <code>smechos_build_root</code> was mounted.</p>
+  <pre><code>cd smechos-iso-output
+sha256sum smechos-plasma-live.iso > smechos-plasma-live.iso.sha256
+gpg --detach-sign --armor smechos-plasma-live.iso</code></pre>
+  <p>If a phase fails on a missing package, that's normal — it's a one-line
+     Dockerfile fix, not a real bug. Find the Ubuntu <code>-dev</code>
+     package providing the missing CMake/Meson dependency, add it to the
+     relevant <code>apt-get install</code> block, and rebuild — Docker layer
+     caching keeps this to seconds, and completed phases/packages are
+     skipped via the stamp files, so you only re-pay for the phase that
+     failed. A handful of dependencies aren't in apt at all (KDE-adjacent
+     projects on their own release schedule, or small third-party
+     libraries) — those get built from source inline in
+     <code>phase_kde()</code>; copy the existing pattern there for a new
+     one.</p>
 
   <h2 id="profiles">Build Profiles</h2>
 
@@ -175,25 +226,35 @@ python3 spk-compile.py --list smechvisor</code></pre>
 
   <h2 id="phases">Phase Reference</h2>
 
-  <h3>SmechOS phases (15)</h3>
+  <h3>SmechOS phases (24, profile <code>smechos-plasma-live</code>)</h3>
   <table>
     <thead><tr><th>#</th><th>Phase name</th><th>What it does</th></tr></thead>
     <tbody>
-      <tr><td>1</td><td><code>musl</code></td><td>Download + compile musl libc, install <code>musl-gcc</code> wrapper</td></tr>
-      <tr><td>2</td><td><code>userland</code></td><td>Compile GNU userland (bash, coreutils, grep, sed, tar, xz…) against musl</td></tr>
-      <tr><td>3</td><td><code>etc</code></td><td>Write /etc skeleton: hostname, hosts, fstab, passwd, group, os-release, locale.conf</td></tr>
-      <tr><td>4</td><td><code>openrc</code></td><td>Compile + deploy OpenRC, set default runlevel symlinks</td></tr>
-      <tr><td>5</td><td><code>inittab</code></td><td>Write <code>/etc/inittab</code> with OpenRC and autologin for <code>smech</code> on tty1</td></tr>
+      <tr><td>1</td><td><code>userland-glibc</code></td><td>Bootstrap GNU userland against host glibc</td></tr>
+      <tr><td>2</td><td><code>etc</code></td><td>Write /etc skeleton: hostname, hosts, fstab, passwd, group, os-release, locale.conf</td></tr>
+      <tr><td>3</td><td><code>systemd</code></td><td>Install systemd from Debian packages</td></tr>
+      <tr><td>4</td><td><code>systemd-config</code></td><td>Configure baseline systemd state</td></tr>
+      <tr><td>5</td><td><code>locale</code></td><td>Generate en_US.UTF-8 locale</td></tr>
       <tr><td>6</td><td><code>grub</code></td><td>Compile GRUB 2.12 EFI (x86_64) + BIOS (i386) from source</td></tr>
-      <tr><td>7</td><td><code>qt-deps</code></td><td>Compile Qt6 modules: qtbase, qtdeclarative, qtsvg, qtwayland, qtmultimedia, qt5compat…</td></tr>
-      <tr><td>8</td><td><code>mesa</code></td><td>Compile Mesa with radeonsi, nouveau, swrast gallium + Vulkan AMD/nouveau drivers</td></tr>
-      <tr><td>9</td><td><code>kde</code></td><td>Compile KDE Frameworks 6.10.0 (30 modules) + Plasma 6.3.4 (13 components)</td></tr>
-      <tr><td>10</td><td><code>plasma-configure</code></td><td>Write SDDM config, autologin.conf, dbus + sddm OpenRC init scripts</td></tr>
-      <tr><td>11</td><td><code>kwin-deps</code></td><td>Copy KWin compositor runtime deps (libdrm, libxkbcommon, libinput) from build host</td></tr>
-      <tr><td>12</td><td><code>qt6uitools</code></td><td>Ensure Qt6UITools .so is present (copy from host if built-in install missed it)</td></tr>
-      <tr><td>13</td><td><code>kernel</code></td><td>Compile Linux 6.12.16: defconfig + KVM, VFIO, IOMMU, RDNA, EFI stub, virtio</td></tr>
-      <tr><td>14</td><td><code>patch-metadata</code></td><td>Patch <code>/etc/os-release</code> and KDE .desktop files for SmechOS branding</td></tr>
-      <tr><td>15</td><td><code>discover</code></td><td>Compile AppStream 1.0.3, PackageKit 1.3.0, install SPK backend script, compile Plasma Discover 6.3.4</td></tr>
+      <tr><td>7</td><td><code>qt-deps</code></td><td>Compile Qt6 6.10.3 modules: qtbase, qtdeclarative, qtsvg, qtwayland, qtmultimedia, qt5compat…</td></tr>
+      <tr><td>8</td><td><code>mesa</code></td><td>Compile Mesa 24.3.4 with radeonsi, nouveau, swrast gallium + Vulkan AMD/Intel/virtio drivers</td></tr>
+      <tr><td>9</td><td><code>cmake-bootstrap</code></td><td>Bootstrap CMake 3.31.6</td></tr>
+      <tr><td>10</td><td><code>wayland</code></td><td>Build Wayland 1.24.0</td></tr>
+      <tr><td>11</td><td><code>wayland-protocols</code></td><td>Build wayland-protocols 1.48</td></tr>
+      <tr><td>12</td><td><code>libinput</code></td><td>Build libinput 1.28.0</td></tr>
+      <tr><td>13</td><td><code>kde</code></td><td>Compile KDE Frameworks 6.24.0 + Plasma 6.6.6</td></tr>
+      <tr><td>14</td><td><code>plasma-configure</code></td><td>Configure display manager (autologin, SDDM fallback)</td></tr>
+      <tr><td>15</td><td><code>kwin-deps</code></td><td>Copy KWin compositor runtime deps from the build host</td></tr>
+      <tr><td>16</td><td><code>xwayland-deps</code></td><td>Fetch Xwayland + xkbcomp + xkb-data</td></tr>
+      <tr><td>17</td><td><code>qt6uitools</code></td><td>Ensure Qt6UITools .so is present</td></tr>
+      <tr><td>18</td><td><code>kernel</code></td><td>Compile Linux 6.12.16: defconfig + KVM, VFIO, IOMMU, RDNA, EFI stub, virtio</td></tr>
+      <tr><td>19</td><td><code>firmware</code></td><td>Bundle GPU firmware (amdgpu + i915 + radeon)</td></tr>
+      <tr><td>20</td><td><code>patch-metadata</code></td><td>Patch <code>/etc/os-release</code> and KDE .desktop files for SmechOS branding</td></tr>
+      <tr><td>21</td><td><code>discover</code></td><td>Compile AppStream 1.0.4, PackageKit 1.3.0, compile Plasma Discover</td></tr>
+      <tr><td>22</td><td><code>calamares</code></td><td>Build the Calamares graphical installer</td></tr>
+      <tr><td>23</td><td><code>firefox</code></td><td>Install Mozilla Firefox stable</td></tr>
+      <tr><td>24</td><td><code>live-initramfs</code></td><td>Build the busybox live initramfs</td></tr>
+      <tr><td>—</td><td><code>bundle</code></td><td>Bundle output into spk-installable .tar.xz packages</td></tr>
     </tbody>
   </table>
 
@@ -218,21 +279,28 @@ python3 spk-compile.py --list smechvisor</code></pre>
     <tbody>
       <tr><td>Linux kernel</td><td>6.12.16</td></tr>
       <tr><td>GRUB</td><td>2.12</td></tr>
-      <tr><td>musl libc</td><td>1.2.5</td></tr>
-      <tr><td>Qt6</td><td>6.8.2</td></tr>
-      <tr><td>KDE Frameworks</td><td>6.10.0</td></tr>
-      <tr><td>KDE Plasma</td><td>6.3.4</td></tr>
+      <tr><td>Qt6</td><td>6.10.3</td></tr>
+      <tr><td>KDE Frameworks</td><td>6.24.0</td></tr>
+      <tr><td>KDE Plasma</td><td>6.6.6 (LTS)</td></tr>
       <tr><td>Mesa</td><td>24.3.4</td></tr>
-      <tr><td>OpenRC</td><td>0.54</td></tr>
-      <tr><td>AppStream</td><td>1.0.3</td></tr>
+      <tr><td>Wayland</td><td>1.24.0</td></tr>
+      <tr><td>wayland-protocols</td><td>1.48</td></tr>
+      <tr><td>libinput</td><td>1.28.0</td></tr>
+      <tr><td>CMake (bootstrap)</td><td>3.31.6</td></tr>
+      <tr><td>AppStream</td><td>1.0.4</td></tr>
       <tr><td>PackageKit</td><td>1.3.0</td></tr>
     </tbody>
   </table>
+  <p>SmechOS builds against <strong>glibc + systemd</strong>, not musl/OpenRC —
+     the leaner musl/OpenRC stack is used only by the headless
+     <code>smechos-bitcoin</code> profile (see <code>spk-compile.py</code>'s
+     <code>SMECHOS_BITCOIN_PHASES</code>), not the desktop
+     <code>smechos-plasma-live</code> profile this page documents.</p>
 
   <h2>Adding a new phase</h2>
   <ol class="steps">
     <li>Write a Python function <code>def phase_myfeature(target): ...</code> in <code>spk-compile.py</code>. Use <code>download()</code>, <code>extract()</code>, <code>cmake_install()</code>, or <code>meson_install()</code> helpers.</li>
-    <li>Add a tuple <code>("myfeature", phase_myfeature, "Description")</code> to <code>SMECHOS_PHASES</code> or <code>SMECHVISOR_PHASES</code> at the correct position.</li>
+    <li>Add a tuple <code>("myfeature", phase_myfeature, "Description")</code> to the relevant phase list — <code>SMECHOS_PLASMA_LIVE_PHASES</code> for the desktop build, or <code>SMECHOS_PHASES</code> / <code>SMECHVISOR_PHASES</code> / <code>SMECHOS_BITCOIN_PHASES</code> for the other profiles — at the correct position.</li>
     <li>Run with <code>--phase myfeature</code> to test in isolation before committing to the full build.</li>
   </ol>
 </main>
