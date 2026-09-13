@@ -46,6 +46,12 @@
     <a href="smechdeploy.html" class="section-link">SmechDeploy</a>
     <a href="smechdeploy.html#profiles">Build Profiles</a>
     <a href="smechdeploy.html#scripts">Script Reference</a>
+
+    <span class="nav-section-label">Smech Radio</span>
+    <a href="smechradio.html" class="section-link">Overview</a>
+    <a href="smechradio.html#architecture">Architecture</a>
+    <a href="smechradio.html#endpoints">Domains &amp; Endpoints</a>
+    <a href="smechradio.html#deploy">Deployment</a>
   </nav>
   <div class="sidebar-footer">
     <a href="https://labs.smech.xyz" target="_blank">labs.smech.xyz</a> &nbsp;·&nbsp;
@@ -207,16 +213,19 @@ spk install plasma-discover</code></pre>
   </div>
 
   <div class="cmd-card">
-    <div class="cmd-card-header"><code>spk compile &lt;profile&gt; [options]</code></div>
+    <div class="cmd-card-header"><code>spk build-image &lt;profile&gt; [options]</code></div>
     <div class="cmd-card-body">
       Native build orchestration — delegates to <code>spk-compile.py</code>
-      (Project SmechDeployV2). Builds a full OS from source.
-      <pre><code>spk compile smechos-plasma-live              # full SmechOS live ISO build
-spk compile smechvisor                       # full SmechVisor build
-spk compile smechos-plasma-live --phase kde  # run one phase only
-spk compile iso smechvisor                   # build install ISO
-spk compile iso shim                         # build deploy shim ISO
-spk compile --list smechos-plasma-live       # list all phases</code></pre>
+      (Project SmechDeployV2). Builds a full OS from source. (Named
+      <code>spk compile</code> before v2.5.0 — that name now means
+      "build one package's source into a <code>.spkg</code>" instead, see
+      <a href="smechdeploy.html">spk-compile documentation</a>.)
+      <pre><code>spk build-image smechos-plasma-live              # full SmechOS live ISO build
+spk build-image smechvisor                       # full SmechVisor build
+spk build-image smechos-plasma-live --phase kde  # run one phase only
+spk build-image iso smechvisor                   # build install ISO
+spk build-image iso shim                         # build deploy shim ISO
+spk build-image --list smechos-plasma-live       # list all phases</code></pre>
     </div>
   </div>
 
@@ -301,8 +310,8 @@ curl -fsSL https://github.com/Smech-Labs/spk-compile/releases/download/v2.2.0/sp
 # Full SmechOS live ISO build (requires root for make install steps)
 sudo python3 spk-compile.py smechos-plasma-live
 
-# Or via spk
-spk compile smechos-plasma-live</code></pre>
+# Or via spk (spk build-image since v2.5.0 -- see spk's README)
+spk build-image smechos-plasma-live</code></pre>
 
   <p>See the <a href="smechdeploy.html">spk-compile documentation</a> for the full phase
      reference. Phase 1 operates directly on <code>images/part2.img</code> via

@@ -96,10 +96,13 @@ python3 spk-compile.py --version</code></pre>
   <h2>Getting spk-compile</h2>
   <pre><code>git clone https://github.com/Smech-Labs/spk-compile.git
 cd spk-compile</code></pre>
-  <p>Or call it directly from inside <code>spk</code>:</p>
-  <pre><code>spk compile smechos
-spk compile smechvisor --phase kde
-spk compile --list smechos</code></pre>
+  <p>Or call it directly from inside <code>spk</code> (as
+     <code>spk build-image</code> since spk v2.5.0 -- <code>spk compile</code>
+     now means "build one package's source into a <code>.spkg</code>",
+     see spk's README):</p>
+  <pre><code>spk build-image smechos
+spk build-image smechvisor --phase kde
+spk build-image --list smechos</code></pre>
   <p><code>spk</code> locates <code>spk-compile.py</code> at
      <code>/usr/share/spk/spk-compile.py</code> or
      <code>/opt/smechdeploy/spk-compile.py</code>.</p>
