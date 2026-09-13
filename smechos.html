@@ -81,15 +81,15 @@
   <table>
     <thead><tr><th>Layer</th><th>Component</th><th>Notes</th></tr></thead>
     <tbody>
-      <tr><td>Desktop</td><td>KDE Plasma 6.7.2</td><td>KDE Frameworks 6.27.0, built from source via spk-compile</td></tr>
+      <tr><td>Desktop</td><td>KDE Plasma 6.6.6 (LTS)</td><td>KDE Frameworks 6.24.0, built from source via spk-compile -- pinned to the LTS line, not KDE's latest, see <a href="smechdeploy.html#phases">Source versions pinned</a></td></tr>
       <tr><td>Display server</td><td>Wayland (KWin compositor)</td><td>Xwayland available for legacy X11 apps</td></tr>
       <tr><td>Init system</td><td>systemd 261</td><td>Rebuilt from source with PAM support enabled</td></tr>
       <tr><td>Login manager</td><td>PLM (Plasma Login Manager)</td><td>Autologin straight to desktop on the live ISO</td></tr>
-      <tr><td>Graphics</td><td>Mesa (compiled from source)</td><td>AMD RDNA/GCN, Intel (incl. Gemini Lake), virtio-gpu; amdgpu/i915 firmware bundled</td></tr>
+      <tr><td>Graphics</td><td>Mesa (compiled from source)</td><td>AMD RDNA/GCN, Intel (incl. Gemini Lake), virtio-gpu; full upstream linux-firmware cloned from git.kernel.org, not just GPU families</td></tr>
       <tr><td>Toolkit</td><td>Qt 6.10.3</td><td>Built from source with fontconfig + XCB support</td></tr>
       <tr><td>Kernel</td><td>Linux 6.12.16</td><td>Compiled as part of the spk-compile pipeline</td></tr>
       <tr><td>Bootloader</td><td>GRUB 2.12</td><td>EFI + BIOS hybrid, El Torito live boot</td></tr>
-      <tr><td>Package manager</td><td>spk v2</td><td>Rust binary, unified install/upgrade/compile/deploy</td></tr>
+      <tr><td>Package manager</td><td>spk v2.5</td><td>Rust binary, unified install/remove/upgrade/deploy, plus <code>compile</code> (build one package) and <code>build-image</code> (build a whole OS image)</td></tr>
       <tr><td>App store frontend</td><td>Plasma Discover</td><td>Backed by PackageKit → spk packagekit-backend</td></tr>
       <tr><td>Installer</td><td>Calamares</td><td>Graphical installer, optional -- boots straight to a live desktop either way</td></tr>
     </tbody>
@@ -98,9 +98,16 @@
   <div class="callout note">
     <strong>Note</strong>
     SmechOS does not use Portage, APT, DNF, or any other external package manager.
-    <code>spk</code> downloads pre-built tarballs from GitHub Releases
-    and extracts them directly. There is no package database or dependency resolver —
-    packages are designed to be self-contained.
+    <code>spk</code> fetches packages from configured repos (or a local file) and
+    extracts them directly -- no <code>emerge</code>, no <code>apt</code>, no
+    <code>flatpak</code>. As of <code>spk</code> v2.2.0+, packages are real
+    <code>.spkg</code> archives (deb-style: a <code>control</code> metadata file
+    plus a payload, see <a href="#spk">spk Package Manager</a> below) with a real
+    installed-package database and name-based dependency resolution --
+    <code>spk remove</code> checks reverse dependencies and never deletes a file
+    another installed package still owns. The older bare <code>.tar.xz</code>
+    bundle format is still supported as a fallback for repos that haven't
+    migrated.
   </div>
 
   <h2 id="installing">Installing (Live ISO)</h2>
@@ -161,11 +168,11 @@
   </ol>
 
   <h2 id="spk">spk — SmechOS Package Manager</h2>
-  <p><code>spk</code> v2.0 (Smech Sovereign Package Keeper) is a zero-dependency Rust binary
+  <p><code>spk</code> (Smech Sovereign Package Keeper) is a zero-dependency Rust binary
      that manages packages on any Smech Labs OS. It does not call
      <code>emerge</code>, <code>apt</code>, <code>flatpak</code>, or any other external
-     package manager. Every package is a <code>.tar.xz</code> archive fetched from the
-     Smech Labs package repository via <code>curl</code> and extracted with <code>tar</code>.
+     package manager -- it shells out to <code>curl</code>/<code>tar</code>/<code>sudo</code>
+     for everything external instead of linking archive/HTTP crates.
      Plasma Discover and other PackageKit-aware frontends can install packages through SPK
      via the built-in PackageKit script backend.</p>
 
@@ -174,31 +181,96 @@
     <thead><tr><th>File</th><th>Version</th><th>Platform</th></tr></thead>
     <tbody>
       <tr>
-        <td><a href="https://github.com/Smech-Labs/spk/releases/download/v2.0.1/spk" target="_blank" rel="noopener">spk</a></td>
-        <td>v2.0.1</td>
+        <td><a href="https://github.com/Smech-Labs/spk/releases/download/v2.5.0/spk" target="_blank" rel="noopener">spk</a></td>
+        <td>v2.5.0</td>
         <td>x86_64 Linux</td>
       </tr>
     </tbody>
   </table>
   <pre><code># Install to /usr/local/bin
-curl -fsSL https://github.com/Smech-Labs/spk/releases/download/v2.0.1/spk -o spk
+curl -fsSL https://github.com/Smech-Labs/spk/releases/download/v2.5.0/spk -o spk
 chmod +x spk
 sudo mv spk /usr/local/bin/spk</code></pre>
-  <p>Full release notes and source: <a href="https://github.com/Smech-Labs/spk/releases/tag/v2.0.1" target="_blank" rel="noopener">github.com/Smech-Labs/spk/releases/tag/v2.0.1</a></p>
+  <p>Full release notes and source: <a href="https://github.com/Smech-Labs/spk/releases/tag/v2.5.0" target="_blank" rel="noopener">github.com/Smech-Labs/spk/releases/tag/v2.5.0</a></p>
 
   <h3>Commands</h3>
 
   <div class="cmd-card">
     <div class="cmd-card-header"><code>spk install &lt;package&gt;</code></div>
     <div class="cmd-card-body">
-      Fetches and extracts a package into the root filesystem.
-      When run on the build host with <code>/mnt/smechos</code> mounted,
-      it targets that mount instead of <code>/</code>. Replaces the old
-      <code>system-install</code> and <code>userland-install</code> split — all
-      packages are now installed with one unified command.
+      Fetches <code>&lt;package&gt;.spkg</code> (falling back to the legacy
+      <code>&lt;package&gt;.tar.xz</code>) from each configured repo in priority
+      order and extracts it into the root filesystem, resolving and installing
+      any <code>depends:</code> first. When run on the build host with
+      <code>/mnt/smechos</code> mounted, it targets that mount instead of
+      <code>/</code>. Replaces the old <code>system-install</code> and
+      <code>userland-install</code> split — all packages are now installed with
+      one unified command.
       <pre><code>spk install kernel-modules
 spk install plasma
 spk install plasma-discover</code></pre>
+    </div>
+  </div>
+
+  <div class="cmd-card">
+    <div class="cmd-card-header"><code>spk install --local-package &lt;path&gt;</code></div>
+    <div class="cmd-card-body">
+      The only sanctioned way to install a <code>.spkg</code> file already on
+      disk. A bare path passed to <code>install</code>
+      (<code>spk install ./foo.spkg</code>) is rejected on purpose, pointing you
+      at this flag instead -- so where a package came from is always explicit.
+      <pre><code>spk install --local-package ./kcoreaddons-6.24.0.spkg</code></pre>
+    </div>
+  </div>
+
+  <div class="cmd-card">
+    <div class="cmd-card-header"><code>spk local-package-repo &lt;folder&gt;</code></div>
+    <div class="cmd-card-body">
+      Registers a local directory of <code>.spkg</code> files as a repo source
+      (priority 1, checked first) -- writes a <code>file://</code> entry into
+      <code>/etc/spk-repo-conf.yaml</code>.
+      <pre><code>spk local-package-repo /mnt/smechos-packages-spkg</code></pre>
+    </div>
+  </div>
+
+  <div class="cmd-card">
+    <div class="cmd-card-header"><code>spk remove &lt;package&gt; [-y] [--force]</code></div>
+    <div class="cmd-card-body">
+      Uninstalls a package. Refuses if another installed package still depends
+      on it (<code>--force</code> overrides), and never deletes a file another
+      installed package also owns.
+      <pre><code>spk remove kquickimageeditor</code></pre>
+    </div>
+  </div>
+
+  <div class="cmd-card">
+    <div class="cmd-card-header"><code>spk list</code> / <code>spk depends &lt;package&gt;</code></div>
+    <div class="cmd-card-body">
+      <code>list</code> shows every installed package;
+      <code>depends</code> prints a package's full dependency tree from the
+      installed-package database at <code>/var/lib/spk/installed/</code>.
+    </div>
+  </div>
+
+  <div class="cmd-card">
+    <div class="cmd-card-header"><code>spk create-live-image &lt;out.iso&gt; [extra-pkg...]</code></div>
+    <div class="cmd-card-body">
+      Builds a bootable image straight from a repo's already-published
+      <code>.spkg</code> packages, via an <code>index.txt</code> the repo
+      publishes alongside them -- no compiler, no <code>spk-compile.py</code>,
+      no source tree. Falls back to squashfs-only, honestly, if the package set
+      doesn't include a kernel + initrd.
+    </div>
+  </div>
+
+  <div class="cmd-card">
+    <div class="cmd-card-header"><code>spk compile &lt;recipe&gt; [-o out.spkg]</code></div>
+    <div class="cmd-card-body">
+      Builds ONE package's source into a <code>.spkg</code> -- pure Rust, no
+      <code>spk-compile.py</code> involved. A recipe is a <code>control</code>-style
+      header followed by <code>#--build--</code>/<code>#--install--</code> shell
+      script blocks. Not to be confused with <code>spk build-image</code> below,
+      which builds an entire OS image from source.
     </div>
   </div>
 
@@ -260,7 +332,7 @@ spk build-image --list smechos-plasma-live       # list all phases</code></pre>
   <div class="cmd-card">
     <div class="cmd-card-header"><code>spk version</code></div>
     <div class="cmd-card-body">
-      Prints the SPK version string. Current release: <code>2.0.1</code>.
+      Prints the SPK version string. Current release: <code>2.5.0</code>.
     </div>
   </div>
 
@@ -276,16 +348,24 @@ spk build-image --list smechos-plasma-live       # list all phases</code></pre>
      image via the <code>discover</code> phase in <code>spk-compile.py</code>.</p>
 
   <h3>Known packages</h3>
+  <p>Category-level bundles are being replaced by individual per-component
+     <code>.spkg</code> packages -- every Qt6 module (qtbase, qtdeclarative,
+     qtwayland, qtmultimedia…) and every KDE Frameworks/Plasma component
+     (kcoreaddons, plasma-desktop, kwin…) now builds and packages
+     independently, generated by <code>spk-compile</code>'s
+     <code>bundle-spkg</code> phase. The table below is the older
+     category-level scheme, still used as a fallback for anything not yet
+     atomized:</p>
   <table>
     <thead><tr><th>Package</th><th>Contents</th></tr></thead>
     <tbody>
       <tr><td><code>base-system</code></td><td>GNU userland compiled against glibc (coreutils, bash, tar, gzip, xz…)</td></tr>
       <tr><td><code>kernel-modules</code></td><td>Linux 6.12.16 kernel modules</td></tr>
-      <tr><td><code>firmware</code></td><td>CPU microcode, amdgpu/i915 GPU firmware blobs</td></tr>
-      <tr><td><code>bootloader-grub</code></td><td>GRUB 2.12 EFI + BIOS binaries</td></tr>
-      <tr><td><code>kde-frameworks</code></td><td>KDE Frameworks 6.27.0 libraries</td></tr>
-      <tr><td><code>plasma</code></td><td>KDE Plasma 6.7.2 desktop</td></tr>
-      <tr><td><code>qt6</code></td><td>Qt 6 runtime libraries</td></tr>
+      <tr><td><code>firmware</code></td><td>Full upstream linux-firmware, not just GPU families</td></tr>
+      <tr><td><code>bootloader-grub</code></td><td>GRUB 2.12 EFI + BIOS binaries, built from source</td></tr>
+      <tr><td><code>kde-frameworks</code></td><td>KDE Frameworks 6.24.0 libraries (legacy bundle; see per-component <code>.spkg</code>s above)</td></tr>
+      <tr><td><code>plasma</code></td><td>KDE Plasma 6.6.6 LTS desktop (legacy bundle; see per-component <code>.spkg</code>s above)</td></tr>
+      <tr><td><code>qt6</code></td><td>Qt 6.10.3 runtime libraries (legacy bundle; see per-module <code>.spkg</code>s above)</td></tr>
       <tr><td><code>mesa-graphics</code></td><td>Mesa OpenGL/Vulkan stack</td></tr>
       <tr><td><code>plasma-discover</code></td><td>Plasma Discover GUI package manager</td></tr>
       <tr><td><code>packagekit-spk</code></td><td>PackageKit daemon + SPK backend</td></tr>
